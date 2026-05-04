@@ -1,55 +1,111 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useUser } from '../context/UserContext'
+import { todayWorkout } from '../data/mockWorkouts'
+import { mockMeals } from '../data/mockNutrition'
+import BottomNav from '../components/layout/BottomNav'
 
-const FEATURES = [
-  { icon: '🏋️', title: 'Workouts', desc: 'AI-personalized training plans' },
-  { icon: '🥗', title: 'Nutrition', desc: 'Meal suggestions & tracking' },
-  { icon: '🤖', title: 'AI Coach', desc: 'Chat about fitness & diet' },
-  { icon: '🏆', title: 'Achievements', desc: 'XP, streaks & milestones' },
-  { icon: '📊', title: 'Progress', desc: 'Track your results over time' },
-  { icon: '🍽️', title: 'Meal Creator', desc: 'Recipes from your ingredients' },
-]
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+const DEMO_AI_INSIGHT =
+  "You've trained 3 days in a row — great streak! Today's session focuses on full body. Hit those squats hard 💪"
+
+const nextMeal = mockMeals[1].options[0]
 
 export default function DashboardPage() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
+  const { stats, profile } = useUser()
   const navigate = useNavigate()
 
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/login')
-  }
+  const displayName = user?.email?.split('@')[0] ?? 'Athlete'
+  const xpToNextLevel = stats.level * 200
+  const xpProgress = Math.min((stats.xp % xpToNextLevel) / xpToNextLevel, 1)
 
   return (
-    <div className="dashboard-layout">
-      <nav className="dashboard-nav">
-        <div className="brand">
-          <div className="brand-icon">⚡</div>
-          <span className="brand-name">Smart<span>Fit</span></span>
+    <div className="app-layout">
+      <div className="page-content">
+
+        <header className="dashboard-header">
+          <div>
+            <p className="greeting-sub">{getGreeting()},</p>
+            <h1 className="greeting-name">{displayName} 👋</h1>
+          </div>
+          <button className="settings-icon-btn" onClick={() => navigate('/settings')}>⚙️</button>
+        </header>
+
+        <div className="insight-card">
+          <div className="insight-tag">🤖 AI Insight · Demo</div>
+          <p className="insight-text">{DEMO_AI_INSIGHT}</p>
         </div>
-        <button className="btn-signout" onClick={handleSignOut}>
-          Sign Out
-        </button>
-      </nav>
 
-      <div className="dashboard-content">
-        <h1 className="dashboard-welcome">
-          Welcome, <span>{user?.email?.split('@')[0]}</span> 👋
-        </h1>
-        <p className="dashboard-sub">
-          Your AI fitness dashboard is being built. Features coming soon:
-        </p>
+        <div className="stats-row">
+          <div className="stat-chip">
+            <span className="stat-value">🔥 {stats.streak}</span>
+            <span className="stat-label">Day Streak</span>
+          </div>
+          <div className="stat-chip">
+            <span className="stat-value">⚡ {stats.xp}</span>
+            <span className="stat-label">Total XP</span>
+          </div>
+          <div className="stat-chip">
+            <span className="stat-value">🏆 Lvl {stats.level}</span>
+            <span className="stat-label">Level</span>
+          </div>
+        </div>
 
-        <div className="placeholder-grid">
-          {FEATURES.map(f => (
-            <div key={f.title} className="placeholder-card">
-              <span className="placeholder-card-icon">{f.icon}</span>
-              <span className="placeholder-card-title">{f.title}</span>
-              <span className="placeholder-card-desc">{f.desc}</span>
-              <span className="badge-coming-soon">Coming soon</span>
+        <div className="xp-bar-wrap">
+          <div className="xp-bar-track">
+            <div className="xp-bar-fill" style={{ width: `${xpProgress * 100}%` }} />
+          </div>
+          <span className="xp-bar-label">{stats.xp % xpToNextLevel} / {xpToNextLevel} XP to Level {stats.level + 1}</span>
+        </div>
+
+        <div className="workout-card-big">
+          <div className="workout-card-top">
+            <div>
+              <p className="workout-card-label">Today's Workout</p>
+              <h2 className="workout-card-name">{todayWorkout.name}</h2>
             </div>
-          ))}
+            <span className={`difficulty-badge ${todayWorkout.difficulty}`}>
+              {todayWorkout.difficulty}
+            </span>
+          </div>
+          <div className="workout-card-meta">
+            <span>⏱ {todayWorkout.durationMinutes} min</span>
+            <span>💪 {todayWorkout.type}</span>
+            <span>📋 {todayWorkout.exercises.length} exercises</span>
+          </div>
+          <button className="btn-primary btn-start" onClick={() => navigate('/workout')}>
+            Start Workout
+          </button>
         </div>
+
+        <div className="next-meal-card" onClick={() => navigate('/nutrition')} role="button" tabIndex={0}>
+          <div className="next-meal-left">
+            <span className="next-meal-emoji">☀️</span>
+            <div>
+              <p className="next-meal-label">Next Meal · Lunch</p>
+              <p className="next-meal-name">{nextMeal.name}</p>
+            </div>
+          </div>
+          <div className="next-meal-right">
+            <span className="next-meal-cal">{nextMeal.macros.calories} kcal</span>
+            <span className="next-meal-protein">{nextMeal.macros.protein}g protein</span>
+          </div>
+        </div>
+
+        <div className="goal-banner">
+          <span>🎯 Goal: <strong>{profile.goal.charAt(0).toUpperCase() + profile.goal.slice(1)}</strong></span>
+          <span> · Level: <strong>{profile.fitnessLevel}</strong></span>
+        </div>
+
       </div>
+      <BottomNav />
     </div>
   )
 }
