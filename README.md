@@ -1,122 +1,77 @@
-# SmartFit — AI Fitness App
+# SmartFit
 
-Smart Fit is an AI-powered fitness and nutrition app with personalized workouts, meal planning, progress tracking, and smart coaching.
+SmartFit is a fitness and nutrition app scaffold with personalized workout, meal, progress, chat, XP, streak, and achievement screens.
 
-> **Current status:** Template / scaffold — all screens are built with mock data. Supabase and AI APIs are not yet connected.
-
----
+Current status: local-first template. Supabase is not connected. AI requests are routed through the local/serverless `/api/ai` endpoint so the OpenRouter key is never exposed in browser code.
 
 ## Getting Started
 
+On this Windows machine you can double-click:
+
+```text
+Open SmartFit.cmd
+```
+
+That starts the Vite dev server and opens the app.
+
+Manual run:
+
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Start dev server
 npm run dev
+```
 
-# 3. Open in browser
+For AI responses, create a local `.env` file and add:
+
+```bash
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+```
+
+Open:
+
+```text
 http://localhost:5173
 ```
 
-### Build for production
+## Build
+
 ```bash
 npm run build
 npm run preview
 ```
 
----
-
 ## App Flow
 
+```text
+/                 Landing
+/signup           Sign up, then onboarding
+/login            Sign in
+/onboarding       Initial profile setup
+/dashboard        Home, XP, streak, workout, next meal
+/workout          Live mock workout flow
+/workout/summary  Post-workout feedback and XP reward
+/nutrition        Mock meal options and mock meal creator
+/chat             Mock fitness and nutrition chat
+/progress         Mock charts, measurements, achievements, history
+/settings         Goal, level, nutrition preference, reminders
 ```
-/ (Landing)
-  ├── /signup → /onboarding → /dashboard
-  └── /login  → /dashboard (if onboarding done)
-
-/dashboard   — Home with today's workout, streak, XP, next meal
-/workout     — Live workout with countdown, sets, rest timer
-/workout/summary — Post-workout feedback + XP reward
-/nutrition   — Breakfast / Lunch / Dinner + meal creator
-/chat        — AI chat (demo responses)
-/progress    — Charts, measurements, achievements, history
-/settings    — Goal, level, nutrition pref, reminders
-```
-
----
 
 ## Project Structure
 
-```
+```text
 src/
-├── lib/
-│   ├── supabase.ts        ← Supabase client (connect via .env.local)
-│   └── ai.ts              ← AI API placeholder (connect when ready)
-├── context/
-│   ├── AuthContext.tsx    ← Auth state (mock + Supabase-ready)
-│   └── UserContext.tsx    ← User profile, XP, streak (localStorage)
-├── data/
-│   ├── mockWorkouts.ts    ← Workout + exercise data
-│   ├── mockNutrition.ts   ← Meal options with macros
-│   ├── mockProgress.ts    ← History, achievements, measurements
-│   └── mockChat.ts        ← Demo chat responses
-├── hooks/
-│   └── useLocalStorage.ts ← Typed localStorage hook
-├── components/
-│   ├── auth/              ← LoginForm, SignupForm
-│   └── layout/
-│       └── BottomNav.tsx  ← App navigation bar
-└── pages/
-    ├── LandingPage.tsx
-    ├── LoginPage.tsx
-    ├── SignupPage.tsx
-    ├── OnboardingPage.tsx
-    ├── DashboardPage.tsx
-    ├── WorkoutPage.tsx
-    ├── WorkoutSummaryPage.tsx
-    ├── NutritionPage.tsx
-    ├── ChatPage.tsx
-    ├── ProgressPage.tsx
-    └── SettingsPage.tsx
+  components/      Reusable auth and layout UI
+  context/         Mock auth, profile, XP, streak state
+  data/            Mock workouts, nutrition, progress, chat data
+  hooks/           localStorage hook
+  lib/             Mock-only placeholders and storage helpers
+  pages/           Route-level screens
 ```
 
----
+## Notes
 
-## Connecting Supabase (future)
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Copy `.env.example` → `.env.local`
-3. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
-4. The app will automatically switch from mock auth to real Supabase auth
-
-**Tables to create:**
-- `user_profiles` — goal, fitnessLevel, workoutType, nutritionPref
-- `user_stats` — xp, level, streak, totalWorkouts
-- `workout_history` — date, workoutId, feedback, xpEarned
-- `body_measurements` — weight, bodyFat, chest, waist, hips
-- `saved_meals` — userId, mealId
-
----
-
-## Connecting AI API (future)
-
-Edit `src/lib/ai.ts` — replace the placeholder functions with real API calls:
-
-| Function | Purpose |
-|---|---|
-| `sendChatMessage()` | Power the AI chat screen |
-| `generateWorkoutPlan()` | Create personalized workouts |
-| `generateMealFromIngredients()` | Build meals from user ingredients |
-| `generateProgressInsight()` | Weekly/monthly AI insights |
-
-Set `VITE_AI_API_KEY` in `.env.local` when ready.
-
----
-
-## Tech Stack
-
-- **React 18** + **TypeScript**
-- **Vite** (dev server + bundler)
-- **React Router v6** (client-side routing)
-- **@supabase/supabase-js** (ready, not connected)
-- Plain CSS with CSS variables (no UI library)
+- Authentication is local mock auth stored in `localStorage`.
+- User profile, stats, and saved meals are stored locally.
+- AI is proxied through `/api/ai`, which reads `OPENROUTER_API_KEY` only on the server side.
+- AI model order is fixed server-side: `openai/gpt-4o-mini`, then `meta-llama/llama-3.1-8b-instruct`.
+- Supabase files are placeholders only and do not connect to external services.

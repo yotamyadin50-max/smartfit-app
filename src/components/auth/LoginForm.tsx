@@ -1,9 +1,11 @@
-import { useState, FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useI18n } from '../../context/I18nContext'
 
 export default function LoginForm() {
   const { signIn } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -11,8 +13,8 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
     setError(null)
     setLoading(true)
 
@@ -28,45 +30,45 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <h1 className="auth-heading">Welcome back</h1>
-      <p className="auth-subheading">Sign in to continue your fitness journey</p>
+      <h1 className="auth-heading">{t('authWelcome')}</h1>
+      <p className="auth-subheading">{t('authWelcomeSub')}</p>
 
       {error && <div className="error-banner">{error}</div>}
 
       <div className="form-group">
-        <label className="form-label" htmlFor="email">Email</label>
+        <label className="form-label" htmlFor="email">{t('email')}</label>
         <input
           id="email"
           type="email"
           className={`form-input${error ? ' error' : ''}`}
           placeholder="you@example.com"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={event => setEmail(event.target.value)}
           autoComplete="email"
           required
         />
       </div>
 
       <div className="form-group">
-        <label className="form-label" htmlFor="password">Password</label>
+        <label className="form-label" htmlFor="password">{t('password')}</label>
         <input
           id="password"
           type="password"
           className={`form-input${error ? ' error' : ''}`}
           placeholder="••••••••"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={event => setPassword(event.target.value)}
           autoComplete="current-password"
           required
         />
       </div>
 
       <button type="submit" className="btn-primary" disabled={loading}>
-        {loading ? 'Signing in…' : 'Sign In'}
+        {loading ? t('signingIn') : t('signIn')}
       </button>
 
       <p className="auth-footer">
-        Don't have an account? <Link to="/signup">Create one</Link>
+        {t('noAccount')} <Link to="/signup">{t('createOne')}</Link>
       </p>
     </form>
   )

@@ -1,14 +1,17 @@
 import { NavLink } from 'react-router-dom'
+import { useI18n } from '../../context/I18nContext'
 
 const navItems = [
-  { to: '/dashboard', label: 'Home', icon: '🏠' },
-  { to: '/workout', label: 'Workout', icon: '🏋️' },
-  { to: '/nutrition', label: 'Nutrition', icon: '🥗' },
-  { to: '/progress', label: 'Progress', icon: '📊' },
-  { to: '/chat', label: 'AI Chat', icon: '🤖' },
+  { to: '/dashboard', labelKey: 'navHome', icon: '🏠' },
+  { to: '/workout', labelKey: 'navWorkout', icon: '🏋️' },
+  { to: '/nutrition', labelKey: 'navNutrition', icon: '🥗' },
+  { to: '/progress', labelKey: 'navProgress', icon: '📊' },
+  { to: '/chat', labelKey: 'navChat', icon: 'AI' },
 ]
 
 export default function BottomNav() {
+  const { t } = useI18n()
+
   return (
     <nav className="bottom-nav">
       {navItems.map(item => (
@@ -18,7 +21,7 @@ export default function BottomNav() {
           className={({ isActive }) => `bottom-nav-item${isActive ? ' active' : ''}`}
         >
           <span className="bottom-nav-icon">{item.icon}</span>
-          <span className="bottom-nav-label">{item.label}</span>
+          <span className="bottom-nav-label">{t(item.labelKey)}</span>
         </NavLink>
       ))}
     </nav>

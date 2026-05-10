@@ -1,9 +1,13 @@
-import { useState, FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useI18n } from '../../context/I18nContext'
+import { useUser } from '../../context/UserContext'
 
 export default function SignupForm() {
   const { signUp } = useAuth()
+  const { resetUserData } = useUser()
+  const { t } = useI18n()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -12,8 +16,8 @@ export default function SignupForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
     setError(null)
 
     if (password !== confirm) {
@@ -29,64 +33,66 @@ export default function SignupForm() {
       setError(error)
       return
     }
-    navigate('/dashboard')
+
+    resetUserData()
+    navigate('/onboarding')
   }
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <h1 className="auth-heading">Create your account</h1>
-      <p className="auth-subheading">Start your AI-powered fitness journey today</p>
+      <h1 className="auth-heading">{t('authCreate')}</h1>
+      <p className="auth-subheading">{t('authCreateSub')}</p>
 
       {error && <div className="error-banner">{error}</div>}
 
       <div className="form-group">
-        <label className="form-label" htmlFor="email">Email</label>
+        <label className="form-label" htmlFor="email">{t('email')}</label>
         <input
           id="email"
           type="email"
           className={`form-input${error ? ' error' : ''}`}
           placeholder="you@example.com"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={event => setEmail(event.target.value)}
           autoComplete="email"
           required
         />
       </div>
 
       <div className="form-group">
-        <label className="form-label" htmlFor="password">Password</label>
+        <label className="form-label" htmlFor="password">{t('password')}</label>
         <input
           id="password"
           type="password"
           className={`form-input${error ? ' error' : ''}`}
           placeholder="At least 6 characters"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={event => setPassword(event.target.value)}
           autoComplete="new-password"
           required
         />
       </div>
 
       <div className="form-group">
-        <label className="form-label" htmlFor="confirm">Confirm Password</label>
+        <label className="form-label" htmlFor="confirm">{t('confirmPassword')}</label>
         <input
           id="confirm"
           type="password"
           className={`form-input${error ? ' error' : ''}`}
           placeholder="••••••••"
           value={confirm}
-          onChange={e => setConfirm(e.target.value)}
+          onChange={event => setConfirm(event.target.value)}
           autoComplete="new-password"
           required
         />
       </div>
 
       <button type="submit" className="btn-primary" disabled={loading}>
-        {loading ? 'Creating account…' : 'Create Account'}
+        {loading ? t('creatingAccount') : t('createAccount')}
       </button>
 
       <p className="auth-footer">
-        Already have an account? <Link to="/login">Sign in</Link>
+        {t('haveAccount')} <Link to="/login">{t('signIn')}</Link>
       </p>
     </form>
   )

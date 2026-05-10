@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useI18n } from '../context/I18nContext'
 import { useUser } from '../context/UserContext'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
@@ -12,7 +13,9 @@ const FEEDBACK_BONUS_XP = 15
 
 export default function WorkoutSummaryPage() {
   const { stats, addXP, incrementStreak } = useUser()
+  const { t } = useI18n()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [phase, setPhase] = useState<'celebration' | 'feedback'>('celebration')
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
@@ -21,32 +24,44 @@ export default function WorkoutSummaryPage() {
   const [pain, setPain] = useState<Pain | null>(null)
   const [notes, setNotes] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [bonusAwarded, setBonusAwarded] = useState(false)
 
   useEffect(() => {
-    addXP(BASE_XP)
-    incrementStreak()
-    const t = setTimeout(() => setPhase('feedback'), 2500)
-    return () => clearTimeout(t)
-  }, [])
+    const state = location.state as { completionId?: string } | null
+    const completionId = state?.completionId ?? 'direct-summary'
+    const rewardKey = `smartfit_rewarded_${completionId}`
 
-  const allAnswered = difficulty && completion && feeling && pain
+    if (!window.sessionStorage.getItem(rewardKey)) {
+      window.sessionStorage.setItem(rewardKey, 'true')
+      addXP(BASE_XP)
+      incrementStreak()
+    }
+
+    const timer = window.setTimeout(() => setPhase('feedback'), 2500)
+    return () => window.clearTimeout(timer)
+  }, [addXP, incrementStreak, location.state])
+
+  const allAnswered = Boolean(difficulty && completion && feeling && pain)
 
   const handleFinish = () => {
-    if (allAnswered) addXP(FEEDBACK_BONUS_XP)
+    if (allAnswered && !bonusAwarded) {
+      addXP(FEEDBACK_BONUS_XP)
+      setBonusAwarded(true)
+    }
     setSubmitted(true)
-    setTimeout(() => navigate('/dashboard'), 1200)
+    window.setTimeout(() => navigate('/dashboard'), 1200)
   }
 
   if (phase === 'celebration') {
     return (
       <div className="summary-celebration">
-        <div className="celebration-emoji">🎉</div>
-        <h1 className="celebration-title">Workout Complete!</h1>
+        <div className="celebration-emoji">✓</div>
+        <h1 className="celebration-title">{t('workoutComplete')}</h1>
         <div className="celebration-badges">
           <div className="xp-badge">+{BASE_XP} XP</div>
-          <div className="streak-badge">🔥 {stats.streak + 1} day streak</div>
+          <div className="streak-badge">{stats.streak + 1} {t('dayStreak')}</div>
         </div>
-        <p className="celebration-sub">Keep it up — results come from consistency!</p>
+        <p className="celebration-sub">{t('consistency')}</p>
       </div>
     )
   }
@@ -54,34 +69,34 @@ export default function WorkoutSummaryPage() {
   if (submitted) {
     return (
       <div className="summary-celebration">
-        <div className="celebration-emoji">⚡</div>
-        <h2 className="celebration-title">+{FEEDBACK_BONUS_XP} Bonus XP!</h2>
-        <p className="celebration-sub">Thanks for the feedback. See you tomorrow!</p>
+        <div className="celebration-emoji">XP</div>
+        <h2 className="celebration-title">+{allAnswered ? FEEDBACK_BONUS_XP : 0} XP</h2>
+        <p className="celebration-sub">{t('feedbackThanks')}</p>
       </div>
     )
   }
 
   return (
     <div className="summary-feedback-layout">
-      <h2 className="summary-title">How was your workout?</h2>
-      <p className="summary-sub">Your answers help us improve next time</p>
+      <h2 className="summary-title">{t('workoutFeedbackTitle')}</h2>
+      <p className="summary-sub">{t('workoutFeedbackSub')}</p>
 
       <div className="feedback-section">
-        <p className="feedback-q">How hard was it?</p>
+        <p className="feedback-q">{t('difficultyQuestion')}</p>
         <div className="feedback-options">
-          {(['easy', 'medium', 'hard'] as Difficulty[]).map(v => (
-            <button key={v} className={`feedback-option-btn${difficulty === v ? ' active' : ''}`} onClick={() => setDifficulty(v)}>
-              {v === 'easy' ? '😌 Easy' : v === 'medium' ? '💪 Medium' : '🔥 Hard'}
+          {(['easy', 'medium', 'hard'] as Difficulty[]).map(value => (
+            <button key={value} className={`feedback-option-btn${difficulty === value ? ' active' : ''}`} onClick={() => setDifficulty(value)}>
+              {value === 'easy' ? t('easy') : value === 'medium' ? t('good') : t('hard')}
             </button>
           ))}
         </div>
       </div>
 
       <div className="feedback-section">
-        <p className="feedback-q">Did you finish everything?</p>
+        <p className="feedback-q">{t('completionQuestion')}</p>
         <div className="feedback-options">
-          {([['yes', '✅ Yes'], ['partial', '⚡ Partially'], ['no', '❌ No']] as [Completion, string][]).map(([v, label]) => (
-            <button key={v} className={`feedback-option-btn${completion === v ? ' active' : ''}`} onClick={() => setCompletion(v)}>
+          {([['yes', t('yes')], ['partial', t('partially')], ['no', t('no')]] as [Completion, string][]).map(([value, label]) => (
+            <button key={value} className={`feedback-option-btn${completion === value ? ' active' : ''}`} onClick={() => setCompletion(value)}>
               {label}
             </button>
           ))}
@@ -89,10 +104,10 @@ export default function WorkoutSummaryPage() {
       </div>
 
       <div className="feedback-section">
-        <p className="feedback-q">How did you feel?</p>
+        <p className="feedback-q">{t('feelingQuestion')}</p>
         <div className="feedback-options">
-          {([['strong', '💪 Strong'], ['normal', '😐 Normal'], ['tired', '😴 Tired']] as [Feeling, string][]).map(([v, label]) => (
-            <button key={v} className={`feedback-option-btn${feeling === v ? ' active' : ''}`} onClick={() => setFeeling(v)}>
+          {([['strong', t('strong')], ['normal', t('normal')], ['tired', t('tired')]] as [Feeling, string][]).map(([value, label]) => (
+            <button key={value} className={`feedback-option-btn${feeling === value ? ' active' : ''}`} onClick={() => setFeeling(value)}>
               {label}
             </button>
           ))}
@@ -100,30 +115,30 @@ export default function WorkoutSummaryPage() {
       </div>
 
       <div className="feedback-section">
-        <p className="feedback-q">Any pain or discomfort?</p>
+        <p className="feedback-q">{t('painQuestion')}</p>
         <div className="feedback-options">
-          <button className={`feedback-option-btn${pain === 'yes' ? ' active' : ''}`} onClick={() => setPain('yes')}>⚠️ Yes</button>
-          <button className={`feedback-option-btn${pain === 'no' ? ' active' : ''}`} onClick={() => setPain('no')}>✅ No</button>
+          <button className={`feedback-option-btn${pain === 'yes' ? ' active' : ''}`} onClick={() => setPain('yes')}>{t('yes')}</button>
+          <button className={`feedback-option-btn${pain === 'no' ? ' active' : ''}`} onClick={() => setPain('no')}>{t('no')}</button>
         </div>
       </div>
 
       <div className="form-group">
-        <label className="form-label">Anything to add? (optional)</label>
+        <label className="form-label">{t('notesQuestion')}</label>
         <textarea
           className="form-input summary-notes"
-          placeholder="e.g. felt strong on squats, shoulder hurt a little…"
           value={notes}
-          onChange={e => setNotes(e.target.value)}
+          onChange={event => setNotes(event.target.value)}
           rows={3}
+          maxLength={500}
         />
       </div>
 
       {allAnswered && (
-        <p className="bonus-xp-hint">+{FEEDBACK_BONUS_XP} bonus XP for completing the review!</p>
+        <p className="bonus-xp-hint">+{FEEDBACK_BONUS_XP} XP</p>
       )}
 
       <button className="btn-primary" onClick={handleFinish}>
-        Finish & Save
+        {t('finishSave')}
       </button>
     </div>
   )

@@ -1,29 +1,31 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { readJson, removeJson, writeJson } from '../lib/storage'
 
-export function useLocalStorage<T>(key: string, initialValue: T) {
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T,
+  validate?: (value: unknown) => value is T,
+) {
   const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = localStorage.getItem(key)
-      return item ? (JSON.parse(item) as T) : initialValue
-    } catch {
-      return initialValue
-    }
+    return readJson(key, initialValue, validate)
   })
 
-  const setValue = (value: T | ((prev: T) => T)) => {
+  const setValue = useCallback((value: T | ((prev: T) => T)) => {
     try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value
-      setStoredValue(valueToStore)
-      localStorage.setItem(key, JSON.stringify(valueToStore))
+      setStoredValue(prev => {
+        const valueToStore = value instanceof Function ? value(prev) : value
+        writeJson(key, valueToStore)
+        return valueToStore
+      })
     } catch (error) {
       console.error(`useLocalStorage error for key "${key}":`, error)
     }
-  }
+  }, [key])
 
-  const removeValue = () => {
-    localStorage.removeItem(key)
+  const removeValue = useCallback(() => {
+    removeJson(key)
     setStoredValue(initialValue)
-  }
+  }, [initialValue, key])
 
   return [storedValue, setValue, removeValue] as const
 }

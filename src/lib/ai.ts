@@ -1,35 +1,37 @@
-// ─────────────────────────────────────────────────────────────
-// AI API Placeholder
-// ─────────────────────────────────────────────────────────────
-// When ready to connect:
-//   1. Set VITE_AI_API_KEY in .env.local
-//   2. Replace the mock functions below with real API calls
-//   3. Recommended: OpenAI / Anthropic / custom backend route
-// ─────────────────────────────────────────────────────────────
+import { getHybridAiReply } from './aiClient'
 
 export interface AIMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
 }
 
-// TODO: replace with real API call
-export async function sendChatMessage(_messages: AIMessage[]): Promise<string> {
-  throw new Error('AI API not connected yet. Use mock responses.')
+function getLastUserMessage(messages: AIMessage[]) {
+  return [...messages].reverse().find(message => message.role === 'user')?.content.trim() || ''
 }
 
-// TODO: replace with real API call
-export async function generateWorkoutPlan(_userProfile: object): Promise<object> {
-  throw new Error('AI API not connected yet.')
+export async function sendChatMessage(messages: AIMessage[]): Promise<string> {
+  const userMessage = getLastUserMessage(messages)
+  const prompt = messages.map(message => `${message.role}: ${message.content}`).join('\n')
+  const reply = await getHybridAiReply({ prompt, userMessage })
+  return reply.text
 }
 
-// TODO: replace with real API call
-export async function generateMealFromIngredients(_ingredients: string[]): Promise<object> {
-  throw new Error('AI API not connected yet.')
+export async function generateWorkoutPlan(userProfile: object): Promise<object> {
+  const userMessage = `צור אימון בטוח לפי הפרופיל: ${JSON.stringify(userProfile)}`
+  const reply = await getHybridAiReply({ prompt: userMessage, userMessage })
+  return { text: reply.text, mode: reply.mode }
 }
 
-// TODO: replace with real API call
-export async function generateProgressInsight(_historyData: object): Promise<string> {
-  throw new Error('AI API not connected yet.')
+export async function generateMealFromIngredients(ingredients: string[]): Promise<object> {
+  const userMessage = `יש לי ${ingredients.join(', ')}. צור מתכון רק מהמצרכים האלה.`
+  const reply = await getHybridAiReply({ prompt: userMessage, userMessage })
+  return { text: reply.text, mode: reply.mode }
 }
 
-export const isAIConfigured = Boolean(import.meta.env.VITE_AI_API_KEY)
+export async function generateProgressInsight(historyData: object): Promise<string> {
+  const userMessage = `איך אני מתקדם? נתונים: ${JSON.stringify(historyData)}`
+  const reply = await getHybridAiReply({ prompt: userMessage, userMessage })
+  return reply.text
+}
+
+export const isAIConfigured = true

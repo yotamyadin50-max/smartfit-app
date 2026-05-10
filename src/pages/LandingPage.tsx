@@ -1,14 +1,16 @@
 import { useNavigate } from 'react-router-dom'
+import { useI18n } from '../context/I18nContext'
 
 const FEATURES = [
-  { icon: '🏋️', text: 'AI-personalized workouts' },
-  { icon: '🥗', text: 'Smart nutrition planning' },
-  { icon: '📊', text: 'Progress tracking & insights' },
-  { icon: '🏆', text: 'XP, streaks & achievements' },
+  { icon: '🏋️', key: 'landingWorkouts' },
+  { icon: '🥗', key: 'landingNutrition' },
+  { icon: '📊', key: 'landingProgress' },
+  { icon: '🏆', key: 'landingAchievements' },
 ]
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   return (
     <div className="landing-layout">
@@ -18,32 +20,28 @@ export default function LandingPage() {
           <span className="brand-name">Smart<span>Fit</span></span>
         </div>
 
-        <h1 className="landing-title">
-          Your AI Fitness<br />Coach, Always Ready
-        </h1>
-        <p className="landing-subtitle">
-          Personalized workouts, nutrition guidance, and real-time coaching — all powered by AI.
-        </p>
+        <h1 className="landing-title">{t('landingTitle')}</h1>
+        <p className="landing-subtitle">{t('landingSubtitle')}</p>
 
         <ul className="landing-features">
-          {FEATURES.map(f => (
-            <li key={f.text} className="landing-feature-item">
-              <span>{f.icon}</span>
-              <span>{f.text}</span>
+          {FEATURES.map(feature => (
+            <li key={feature.key} className="landing-feature-item">
+              <span>{feature.icon}</span>
+              <span>{t(feature.key)}</span>
             </li>
           ))}
         </ul>
 
         <div className="landing-cta">
           <button className="btn-primary" onClick={() => navigate('/signup')}>
-            Get Started Free
+            {t('landingGetStarted')}
           </button>
           <button className="btn-secondary" onClick={() => navigate('/login')}>
-            Sign In
+            {t('landingSignIn')}
           </button>
         </div>
 
-        <p className="landing-note">No credit card required · Works offline</p>
+        <p className="landing-note">{t('landingNote')}</p>
       </div>
     </div>
   )
