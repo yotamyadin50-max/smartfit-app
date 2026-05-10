@@ -4,7 +4,7 @@ dotenv.config()
 console.log('OPENROUTER_API_KEY exists:', Boolean(process.env.OPENROUTER_API_KEY))
 
 const OPENROUTER_CHAT_COMPLETIONS_URL = 'https://openrouter.ai/api/v1/chat/completions'
-const FREE_MODEL = 'openrouter/free'
+const FREE_MODEL = 'meta-llama/llama-3.1-8b-instruct:free'
 const DEFAULT_REFERER = 'http://localhost:5173'
 const DEFAULT_TITLE = 'SmartFit AI'
 const SYSTEM_PROMPT = 'You are a helpful AI fitness coach. Give safe, general advice.'

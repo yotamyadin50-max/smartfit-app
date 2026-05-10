@@ -247,7 +247,10 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
       }
 
       if (data?.model === 'local-mode') {
-        throw new Error('server-local-mode')
+        // Server has no API key or OpenRouter is unavailable — skip retry and go straight to client fallback
+        const err = new Error('server-local-mode')
+        ;(err as Error & { skipRetry: boolean }).skipRetry = true
+        throw err
       }
 
       if (typeof data?.text !== 'string' || !data.text.trim()) {
@@ -277,7 +280,10 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
         isAbortError(error) &&
         (abortReason === 'new-message' || abortReason === 'cancelled')
 
-      if (isUserCancellation || attempt >= MAX_AI_RETRIES) {
+      const isServerLocalMode =
+        error instanceof Error && (error as Error & { skipRetry?: boolean }).skipRetry === true
+
+      if (isUserCancellation || isServerLocalMode || attempt >= MAX_AI_RETRIES) {
         throw error
       }
 
