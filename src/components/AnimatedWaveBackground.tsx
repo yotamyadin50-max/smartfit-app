@@ -1,93 +1,129 @@
+import { useEffect, useRef } from 'react'
+
+const WAVES = [
+  { amp: 0.13, freq: 1.7, speed: 0.0000013, phase: 0.0, thick: 0.28, alpha: 1.0  },
+  { amp: 0.10, freq: 2.3, speed: 0.0000020, phase: 1.2, thick: 0.20, alpha: 0.75 },
+  { amp: 0.08, freq: 3.1, speed: 0.0000016, phase: 2.5, thick: 0.14, alpha: 0.55 },
+  { amp: 0.06, freq: 1.3, speed: 0.0000010, phase: 4.0, thick: 0.10, alpha: 0.40 },
+  { amp: 0.05, freq: 4.0, speed: 0.0000025, phase: 0.7, thick: 0.08, alpha: 0.30 },
+]
+
 export default function AnimatedWaveBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+
+    let W = 0, H = 0, t = 0, last = 0, rafId = 0
+
+    function resize() {
+      W = canvas.width  = window.innerWidth
+      H = canvas.height = window.innerHeight
+    }
+    window.addEventListener('resize', resize)
+    resize()
+
+    function drawWave(w: typeof WAVES[0]) {
+      const angle = Math.PI / 4
+      const cx = W / 2, cy = H / 2
+      const len = Math.sqrt(W * W + H * H)
+
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(angle)
+
+      const spread = len * w.thick
+      const steps  = Math.ceil(len / 2) + 50
+
+      const grad = ctx.createLinearGradient(-len / 2, 0, len / 2, 0)
+      grad.addColorStop(0.00, `rgba(20,10,180,0)`)
+      grad.addColorStop(0.15, `rgba(50,30,220,${w.alpha})`)
+      grad.addColorStop(0.35, `rgba(80,20,255,${w.alpha})`)
+      grad.addColorStop(0.50, `rgba(140,0,255,${w.alpha})`)
+      grad.addColorStop(0.65, `rgba(180,50,255,${w.alpha})`)
+      grad.addColorStop(0.85, `rgba(100,20,220,${w.alpha})`)
+      grad.addColorStop(1.00, `rgba(20,10,180,0)`)
+
+      ctx.beginPath()
+      for (let i = 0; i <= steps; i++) {
+        const x = -len / 2 + (len * i) / steps
+        const y = Math.sin(x * w.freq * 0.003 + t * w.speed * 1000 + w.phase) * H * w.amp
+        if (i === 0) ctx.moveTo(x, y - spread / 2)
+        else         ctx.lineTo(x, y - spread / 2)
+      }
+      for (let i = steps; i >= 0; i--) {
+        const x = -len / 2 + (len * i) / steps
+        const y = Math.sin(x * w.freq * 0.003 + t * w.speed * 1000 + w.phase) * H * w.amp
+        ctx.lineTo(x, y + spread / 2)
+      }
+      ctx.closePath()
+      ctx.fillStyle = grad
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawVignette() {
+      const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.75)
+      grad.addColorStop(0,   'rgba(0,0,0,0)')
+      grad.addColorStop(0.5, 'rgba(0,0,0,0)')
+      grad.addColorStop(1,   'rgba(0,0,0,0.92)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, W, H)
+    }
+
+    function drawGlow() {
+      ctx.save()
+      ctx.globalCompositeOperation = 'screen'
+      const angle = Math.PI / 4
+      const cx = W / 2, cy = H / 2
+      const grad = ctx.createLinearGradient(
+        cx - Math.cos(angle) * W * 0.5, cy - Math.sin(angle) * H * 0.5,
+        cx + Math.cos(angle) * W * 0.5, cy + Math.sin(angle) * H * 0.5
+      )
+      grad.addColorStop(0,   'rgba(0,0,0,0)')
+      grad.addColorStop(0.2, 'rgba(60,0,160,0.06)')
+      grad.addColorStop(0.5, 'rgba(120,0,255,0.10)')
+      grad.addColorStop(0.8, 'rgba(60,0,160,0.06)')
+      grad.addColorStop(1,   'rgba(0,0,0,0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, W, H)
+      ctx.restore()
+    }
+
+    function frame(ts: number) {
+      const dt = Math.min(ts - last, 50)
+      last = ts
+      t += dt
+
+      ctx.clearRect(0, 0, W, H)
+      for (let i = WAVES.length - 1; i >= 0; i--) drawWave(WAVES[i])
+      drawGlow()
+      drawVignette()
+
+      rafId = requestAnimationFrame(frame)
+    }
+
+    rafId = requestAnimationFrame(frame)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
+
   return (
-    <div className="smartfit-wave-bg" aria-hidden="true">
-      <div className="smartfit-wave-vignette" />
-
-      <svg
-        className="smartfit-wave-svg smartfit-wave-svg-main"
-        viewBox="0 0 1600 900"
-        preserveAspectRatio="none"
-        focusable="false"
-      >
-        <defs>
-          <linearGradient id="smartfitWaveGradientMain" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#00f5a0" stopOpacity="0" />
-            <stop offset="0.2" stopColor="#00f5a0" stopOpacity="0.86" />
-            <stop offset="0.48" stopColor="#f5ff3d" stopOpacity="0.9" />
-            <stop offset="0.72" stopColor="#20f3ff" stopOpacity="0.62" />
-            <stop offset="1" stopColor="#00f5a0" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="smartfitWaveGradientSoft" x1="1" y1="0" x2="0" y2="0">
-            <stop offset="0" stopColor="#fff45c" stopOpacity="0" />
-            <stop offset="0.28" stopColor="#fff45c" stopOpacity="0.55" />
-            <stop offset="0.58" stopColor="#00f5a0" stopOpacity="0.62" />
-            <stop offset="0.86" stopColor="#18d9ff" stopOpacity="0.42" />
-            <stop offset="1" stopColor="#18d9ff" stopOpacity="0" />
-          </linearGradient>
-          <filter id="smartfitWaveBlur" x="-12%" y="-60%" width="124%" height="220%">
-            <feGaussianBlur stdDeviation="10" />
-          </filter>
-          <filter id="smartfitWaveGlow" x="-12%" y="-60%" width="124%" height="220%">
-            <feGaussianBlur stdDeviation="22" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        <g className="smartfit-wave-band smartfit-wave-band-one" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path
-            className="smartfit-wave-path smartfit-wave-path-glow"
-            filter="url(#smartfitWaveGlow)"
-            stroke="url(#smartfitWaveGradientMain)"
-            strokeWidth="34"
-            opacity="0.28"
-            d="M-120 275 C145 180 335 372 535 290 C735 205 902 135 1130 220 C1338 298 1430 152 1730 215"
-          />
-          <path
-            className="smartfit-wave-path smartfit-wave-path-core"
-            stroke="url(#smartfitWaveGradientMain)"
-            strokeWidth="8"
-            opacity="0.78"
-            d="M-120 278 C145 183 335 375 535 293 C735 208 902 138 1130 223 C1338 301 1430 155 1730 218"
-          />
-        </g>
-
-        <g className="smartfit-wave-band smartfit-wave-band-two" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path
-            filter="url(#smartfitWaveBlur)"
-            stroke="url(#smartfitWaveGradientSoft)"
-            strokeWidth="42"
-            opacity="0.22"
-            d="M-150 420 C80 350 246 505 440 444 C660 376 810 272 1035 386 C1248 494 1425 348 1730 426"
-          />
-          <path
-            className="smartfit-wave-path smartfit-wave-path-core"
-            stroke="url(#smartfitWaveGradientSoft)"
-            strokeWidth="7"
-            opacity="0.58"
-            d="M-150 423 C80 353 246 508 440 447 C660 379 810 275 1035 389 C1248 497 1425 351 1730 429"
-          />
-        </g>
-
-        <g className="smartfit-wave-band smartfit-wave-band-three" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path
-            filter="url(#smartfitWaveGlow)"
-            stroke="url(#smartfitWaveGradientMain)"
-            strokeWidth="24"
-            opacity="0.18"
-            d="M-140 610 C86 512 280 650 480 586 C690 520 828 456 1048 548 C1286 646 1428 512 1720 578"
-          />
-          <path
-            className="smartfit-wave-path smartfit-wave-path-core"
-            stroke="url(#smartfitWaveGradientMain)"
-            strokeWidth="5"
-            opacity="0.42"
-            d="M-140 612 C86 514 280 652 480 588 C690 522 828 458 1048 550 C1286 648 1428 514 1720 580"
-          />
-        </g>
-      </svg>
-    </div>
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        top: 0, left: 0,
+        width: '100%', height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }}
+    />
   )
 }
