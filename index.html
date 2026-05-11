@@ -1,18 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Mobile viewport — essential for Capacitor/native feel -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
+
+    <!-- PWA / App Store meta -->
+    <meta name="application-name" content="SmartFit" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SmartFit" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Description for stores -->
+    <meta
+      name="description"
+      content="SmartFit — מאמן כושר ותזונה מבוסס AI. אימונים, תפריטים ומעקב התקדמות מותאמים אישית."
+    />
+
+    <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
     <title>SmartFit - AI Fitness Coach</title>
   </head>
   <body>
-    <div id="root">
-      <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 80px auto; padding: 24px; line-height: 1.5;">
-        <h1>SmartFit</h1>
-        <p>This project needs the local Vite server. Double-click <strong>Open SmartFit.cmd</strong> in this folder, then open <a href="http://127.0.0.1:5173">http://127.0.0.1:5173</a>.</p>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <div id="sf-floating-ai-chat" class="sf-ai-chat-root"></div>
   </body>

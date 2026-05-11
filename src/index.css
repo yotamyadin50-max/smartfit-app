@@ -1,5 +1,15 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Mobile / Capacitor safe-area ───────────────────────────────────────────
+   Adds padding so content never hides behind the notch or home-indicator.
+   env() works on iOS Safari + Chrome Android; falls back to 0px in browser. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
 :root {
   --bg: #000;
   --bg-card: #18201c;
@@ -202,7 +212,16 @@ button, input, textarea, select { font: inherit; }
 button { color: inherit; }
 
 /* ── App shell ── */
-.app-layout { display: flex; flex-direction: column; min-height: 100vh; }
+/* Safe-area padding for notch phones and Android gesture navigation */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
 .page-content { flex: 1; padding: 20px 16px calc(var(--bottom-nav-h) + 20px); max-width: 480px; margin: 0 auto; width: 100%; }
 .page-title { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
 

@@ -43,5 +43,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), openRouterDevApi()],
+    // Required for Capacitor: assets must use relative paths so they load
+    // correctly when served from the native Android/iOS webview
+    base: '/',
+    build: {
+      // Output directory that Capacitor reads (must match capacitor.config.ts webDir)
+      outDir: 'dist',
+    },
   }
 })
