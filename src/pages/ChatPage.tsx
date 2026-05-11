@@ -17,6 +17,8 @@ import {
 } from '../lib/smartfitData'
 import { getConnectedScale, getConnectedWatch, getLatestWeight } from '../deviceConnections'
 import { getProgressData } from '../progressStorage'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { loadChatHistoryFromSupabase, saveChatMessageToSupabase } from '../lib/supabaseDb'
 import BottomNav from '../components/layout/BottomNav'
 
 let msgIdCounter = 0
@@ -81,6 +83,25 @@ export default function ChatPage() {
     saveRecentChatMessages(messages.map(toStoredMessage))
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Load chat history from Supabase on mount (replaces localStorage if cloud has messages)
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return
+      const cloudMessages = await loadChatHistoryFromSupabase(data.user.id)
+      if (!cloudMessages.length) return
+      const storedMessages: StoredChatMessage[] = cloudMessages.map(row => ({
+        id: row.id,
+        role: row.role,
+        text: row.text,
+        timestamp: row.timestamp,
+        isLocalMode: row.is_local_mode ?? false,
+        localModeLabel: row.local_mode_label,
+      }))
+      setMessages(storedMessages.map(toUiMessage))
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => {
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
@@ -164,6 +185,17 @@ export default function ChatPage() {
     const userMsg: ChatMessage = { id: makeId(), role: 'user', text: cleanMessage, timestamp: new Date() }
     const nextMessages = [...messagesRef.current, userMsg]
     setMessages(prev => [...prev, userMsg])
+    // Save user message to Supabase (fire-and-forget)
+    if (isSupabaseConfigured) {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) saveChatMessageToSupabase(data.user.id, {
+          id: userMsg.id,
+          role: 'user',
+          text: userMsg.text,
+          timestamp: userMsg.timestamp.toISOString(),
+        })
+      })
+    }
     setInput('')
     setSlowLoading(false)
     setLoading(true)
@@ -189,15 +221,51 @@ export default function ChatPage() {
         return
       }
 
+      const replyText = replyResult.text.trim()
+      console.log('AI reply text:', replyText)
+      if (!replyText) {
+        const fallback = handleFallback({
+          profile,
+          language,
+          stats,
+          userMessage: userMsg.text,
+        })
+        setMessages(prev => [
+          ...prev,
+          {
+            id: makeId(),
+            role: 'assistant',
+            text: fallback.text,
+            timestamp: new Date(),
+            isLocalMode: true,
+            localModeLabel: fallback.modeLabel,
+          },
+        ])
+        return
+      }
+
       const reply: ChatUiMessage = {
         id: makeId(),
         role: 'assistant',
-        text: replyResult.text,
+        text: replyText,
         timestamp: new Date(),
         isLocalMode: replyResult.mode !== 'openrouter',
         localModeLabel: replyResult.modeLabel,
       }
       setMessages(prev => [...prev, reply])
+      // Save AI reply to Supabase (fire-and-forget)
+      if (isSupabaseConfigured) {
+        supabase.auth.getUser().then(({ data }) => {
+          if (data.user) saveChatMessageToSupabase(data.user.id, {
+            id: reply.id,
+            role: 'assistant',
+            text: reply.text,
+            timestamp: reply.timestamp.toISOString(),
+            is_local_mode: reply.isLocalMode,
+            local_mode_label: reply.localModeLabel,
+          })
+        })
+      }
     } catch (error) {
       if (cancelledRequestIdsRef.current.has(requestId)) {
         cancelledRequestIdsRef.current.delete(requestId)

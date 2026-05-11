@@ -6,6 +6,7 @@ import {
   saveProfileToSupabase,
   saveStatsToSupabase,
 } from '../lib/supabaseDb'
+import { syncProgressFromSupabase } from '../progressStorage'
 
 async function getCurrentUserId(): Promise<string | null> {
   if (!isSupabaseConfigured) return null
@@ -429,17 +430,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
     // Restore cloud data for an already-logged-in user on mount
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return
-      const cloudData = await loadUserDataFromSupabase(data.session.user.id)
+      const uid = data.session.user.id
+      const cloudData = await loadUserDataFromSupabase(uid)
       if (cloudData?.profile) setProfile(cloudData.profile)
       if (cloudData?.stats) setStats(cloudData.stats)
+      syncProgressFromSupabase(uid)
     })
 
     // Also listen for future sign-in events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const cloudData = await loadUserDataFromSupabase(session.user.id)
+        const uid = session.user.id
+        const cloudData = await loadUserDataFromSupabase(uid)
         if (cloudData?.profile) setProfile(cloudData.profile)
         if (cloudData?.stats) setStats(cloudData.stats)
+        syncProgressFromSupabase(uid)
       }
     })
 
