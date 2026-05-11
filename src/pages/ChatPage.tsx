@@ -21,8 +21,11 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { loadChatHistoryFromSupabase, saveChatMessageToSupabase } from '../lib/supabaseDb'
 import BottomNav from '../components/layout/BottomNav'
 
-let msgIdCounter = 0
-function makeId() { return String(++msgIdCounter) }
+function makeId() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
 
 const MAX_CHAT_HISTORY_PROMPT_CHARS = 1800
 const CHAT_SEND_DEBOUNCE_MS = 300
