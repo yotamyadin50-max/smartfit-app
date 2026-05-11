@@ -9,13 +9,13 @@ const OPENROUTER_URL  = 'https://openrouter.ai/api/v1/chat/completions'
 const HTTP_REFERER    = 'http://localhost:5173'
 const APP_TITLE       = 'SmartFit'
 const TIMEOUT_MS      = 30000
+// Ordered fastest-first: small models respond quicker and are less rate-limited
 const MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'openai/gpt-oss-20b:free',
-  'qwen/qwen3-next-80b-a3b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
-  'google/gemma-4-31b-it:free',
-  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'meta-llama/llama-3.2-3b-instruct:free',   // 3B — fastest
+  'openai/gpt-oss-20b:free',                  // 20B — fast
+  'meta-llama/llama-3.3-70b-instruct:free',   // 70B — slower but high quality
+  'google/gemma-4-31b-it:free',               // fallback
+  'nousresearch/hermes-3-llama-3.1-405b:free',// last resort
 ]
 
 export const MAX_PROMPT_LENGTH = 4000
@@ -211,21 +211,15 @@ export async function handleOpenRouterAiPayload(payload) {
   }
 
   // 3. Try each model in order until one works
-  // On 429 (rate limit): retry same model once after 2s before moving on
-  const sleep = ms => new Promise(r => setTimeout(r, ms))
-
+  // On 429 (rate limit): skip immediately to the next model (no delay)
   for (const model of MODELS) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        return await callOpenRouter(apiKey, model, prompt)
-      } catch (err) {
-        if (err.isRateLimit && attempt === 1) {
-          console.log(`Rate limited on ${model} — retrying in 2s...`)
-          await sleep(2000)
-          continue
-        }
+    try {
+      return await callOpenRouter(apiKey, model, prompt)
+    } catch (err) {
+      if (err.isRateLimit) {
+        console.log(`Rate limited on ${model} — skipping to next model`)
+      } else {
         console.log(`OpenRouter failed (${model}):`, err.message)
-        break
       }
     }
   }
