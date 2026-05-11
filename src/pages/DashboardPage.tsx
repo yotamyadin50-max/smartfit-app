@@ -14,7 +14,6 @@ import {
 } from '../context/UserContext'
 import { useI18n } from '../context/I18nContext'
 import { todayWorkout } from '../data/mockWorkouts'
-import { mockMeals } from '../data/mockNutrition'
 import BottomNav from '../components/layout/BottomNav'
 
 function getGreeting(t: (key: string) => string) {
@@ -23,8 +22,6 @@ function getGreeting(t: (key: string) => string) {
   if (h < 18) return t('greetingAfternoon')
   return t('greetingEvening')
 }
-
-const nextMeal = mockMeals.find(meal => meal.id === 'lunch')?.options[0] ?? mockMeals[0]?.options[0]
 
 const goalLabelKeys: Record<Goal, string> = {
   cut: 'toneUp',
@@ -95,8 +92,16 @@ export default function DashboardPage() {
         </header>
 
         <div className="insight-card">
-          <div className="insight-tag">{t('aiInsightDemo')}</div>
-          <p className="insight-text">{t('dashboardInsight')}</p>
+          <div className="insight-tag">{t('aiInsight')}</div>
+          <p className="insight-text">
+            {stats.streak > 0
+              ? isHebrew
+                ? `התאמנת ${stats.streak} ימים ברצף — כל הכבוד! המשך כך.`
+                : `${stats.streak}-day streak — great consistency! Keep it up.`
+              : isHebrew
+                ? 'ברוך הבא! הגיע הזמן להתחיל את המסע הכושר שלך.'
+                : "Welcome! Let's get your fitness journey started."}
+          </p>
         </div>
 
         <div className="stats-row">
@@ -173,28 +178,69 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {nextMeal && (
-          <div
-            className="next-meal-card"
-            onClick={() => navigate('/nutrition')}
-            onKeyDown={event => {
-              if (event.key === 'Enter' || event.key === ' ') navigate('/nutrition')
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="next-meal-left">
-              <div>
-                <p className="next-meal-label">{t('nextMealLunch')}</p>
-                <p className="next-meal-name">{nextMeal.name}</p>
-              </div>
-            </div>
-            <div className="next-meal-right">
-              <span className="next-meal-cal">{nextMeal.macros.calories} {t('kcal')}</span>
-              <span className="next-meal-protein">{nextMeal.macros.protein}g protein</span>
+        <div
+          className="next-meal-card"
+          onClick={() => navigate('/nutrition')}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') navigate('/nutrition')
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="next-meal-left">
+            <div>
+              <p className="next-meal-label">🍽 {isHebrew ? 'תזונה' : 'Nutrition'}</p>
+              <p className="next-meal-name">{isHebrew ? 'תכנן את הארוחה הבאה שלך' : 'Plan your next meal'}</p>
             </div>
           </div>
-        )}
+          <div className="next-meal-right">
+            <span className="next-meal-cal">{isHebrew ? 'פתח →' : 'Open →'}</span>
+          </div>
+        </div>
+
+        <div className="training-system-card compact">
+          <div>
+            <p className="workout-card-label">🏆 {isHebrew ? 'הישגים' : 'Achievements'}</p>
+            <h2 className="workout-card-name">{isHebrew ? 'תגים ורצפים' : 'Badges & Streaks'}</h2>
+            <p className="training-card-copy">{isHebrew ? `רצף: ${stats.streak} ימים · רמה ${stats.level}` : `Streak: ${stats.streak} days · Level ${stats.level}`}</p>
+          </div>
+          <button className="btn-secondary btn-start" onClick={() => navigate('/badges')}>
+            {isHebrew ? 'צפה בתגים' : 'View Badges'}
+          </button>
+        </div>
+
+        <div className="training-system-card compact">
+          <div>
+            <p className="workout-card-label">🍽 {isHebrew ? 'תזונה' : 'Nutrition'}</p>
+            <h2 className="workout-card-name">{isHebrew ? 'ספר מתכונים' : 'Recipe Book'}</h2>
+            <p className="training-card-copy">{isHebrew ? 'מתכונים מותאמים לתוכנית שלך' : 'Recipes tailored to your plan'}</p>
+          </div>
+          <button className="btn-secondary btn-start" onClick={() => navigate('/recipes')}>
+            {isHebrew ? 'פתח מתכונים' : 'Open Recipes'}
+          </button>
+        </div>
+
+        <div className="training-system-card compact">
+          <div>
+            <p className="workout-card-label">👥 {isHebrew ? 'קהילה' : 'Community'}</p>
+            <h2 className="workout-card-name">{isHebrew ? 'חברים וליגה' : 'Friends & Leaderboard'}</h2>
+            <p className="training-card-copy">{isHebrew ? 'תתחרה עם חברים ועקוב אחר ההתקדמות' : 'Compete with friends and track progress'}</p>
+          </div>
+          <button className="btn-secondary btn-start" onClick={() => navigate('/social')}>
+            {isHebrew ? 'פתח חברתי' : 'Open Social'}
+          </button>
+        </div>
+
+        <div className="training-system-card compact">
+          <div>
+            <p className="workout-card-label">⌚ {isHebrew ? 'מכשירים' : 'Devices'}</p>
+            <h2 className="workout-card-name">{isHebrew ? 'סנכרון מכשירים' : 'Wearable Sync'}</h2>
+            <p className="training-card-copy">{isHebrew ? 'חבר שעון, מאזניים ו-GPS' : 'Connect watch, scale & GPS'}</p>
+          </div>
+          <button className="btn-secondary btn-start" onClick={() => navigate('/wearable')}>
+            {isHebrew ? 'חבר מכשיר' : 'Connect Device'}
+          </button>
+        </div>
 
         <div className="goal-banner">
           <span>{t('goals')}: <strong>{goals.map(goal => t(goalLabelKeys[goal])).join(', ')}</strong></span>

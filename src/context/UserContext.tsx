@@ -1,5 +1,17 @@
-import { createContext, useCallback, useContext, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, type ReactNode } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import {
+  loadUserDataFromSupabase,
+  saveProfileToSupabase,
+  saveStatsToSupabase,
+} from '../lib/supabaseDb'
+
+async function getCurrentUserId(): Promise<string | null> {
+  if (!isSupabaseConfigured) return null
+  const { data } = await supabase.auth.getUser()
+  return data.user?.id ?? null
+}
 
 export type Goal = 'cut' | 'bulk' | 'fitness' | 'health' | 'endurance' | 'flexibility' | 'consistency'
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced'
@@ -130,10 +142,10 @@ const DEFAULT_PROFILE: UserProfile = {
 }
 
 const DEFAULT_STATS: UserStats = {
-  xp: 780,
-  level: 4,
-  streak: 3,
-  totalWorkouts: 7,
+  xp: 0,
+  level: 1,
+  streak: 0,
+  totalWorkouts: 0,
 }
 
 const NEW_ACCOUNT_STATS: UserStats = {
@@ -410,6 +422,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useLocalStorage<UserProfile>('smartfit_profile', DEFAULT_PROFILE, isProfile)
   const [stats, setStats] = useLocalStorage<UserStats>('smartfit_stats', DEFAULT_STATS, isStats)
 
+  // ── Sync from Supabase on login ────────────────────────────────────────────
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+
+    // Restore cloud data for an already-logged-in user on mount
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return
+      const cloudData = await loadUserDataFromSupabase(data.session.user.id)
+      if (cloudData?.profile) setProfile(cloudData.profile)
+      if (cloudData?.stats) setStats(cloudData.stats)
+    })
+
+    // Also listen for future sign-in events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const cloudData = await loadUserDataFromSupabase(session.user.id)
+        if (cloudData?.profile) setProfile(cloudData.profile)
+        if (cloudData?.stats) setStats(cloudData.stats)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [setProfile, setStats])
+
   const updateProfile = useCallback((updates: Partial<UserProfile>) =>
     setProfile(prev => {
       const goals = updates.goals ?? prev.goals
@@ -417,7 +453,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const workoutDuration = updates.workoutDuration ?? getWorkoutDuration(updates.workout_time) ?? prev.workoutDuration
       const workoutTypes = updates.workoutTypes ?? prev.workoutTypes
       const workoutType = updates.workoutType ?? getWorkoutTypeFromEquipment(updates.equipment) ?? workoutTypes?.[0] ?? prev.workoutType
-      return {
+      const next: UserProfile = {
         ...prev,
         ...updates,
         age: updates.age === undefined ? prev.age : sanitizeProfileAge(updates.age),
@@ -430,6 +466,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         workoutType,
         weeklyPlan: updates.weeklyPlan ? ensureRestDays(updates.weeklyPlan) : prev.weeklyPlan,
       }
+      getCurrentUserId().then(uid => { if (uid) saveProfileToSupabase(uid, next) })
+      return next
     })
   , [setProfile])
 
@@ -438,21 +476,29 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const safeAmount = Math.max(0, amount)
       const newXP = prev.xp + safeAmount
       const newLevel = Math.floor(newXP / xpForLevel(1)) + 1
-      return { ...prev, xp: newXP, level: Math.max(prev.level, newLevel), totalWorkouts: prev.totalWorkouts }
+      const next: UserStats = { ...prev, xp: newXP, level: Math.max(prev.level, newLevel), totalWorkouts: prev.totalWorkouts }
+      getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
+      return next
     })
   }, [setStats])
 
   const incrementStreak = useCallback(() => {
-    setStats(prev => ({
-      ...prev,
-      streak: prev.streak + 1,
-      totalWorkouts: prev.totalWorkouts + 1,
-    }))
+    setStats(prev => {
+      const next: UserStats = { ...prev, streak: prev.streak + 1, totalWorkouts: prev.totalWorkouts + 1 }
+      getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
+      return next
+    })
   }, [setStats])
 
   const resetUserData = useCallback(() => {
     setProfile(getFreshDefaultProfile())
     setStats({ ...NEW_ACCOUNT_STATS })
+    getCurrentUserId().then(uid => {
+      if (uid) {
+        saveProfileToSupabase(uid, getFreshDefaultProfile())
+        saveStatsToSupabase(uid, { ...NEW_ACCOUNT_STATS })
+      }
+    })
   }, [setProfile, setStats])
 
   const completeOnboarding = useCallback((profileData: Partial<UserProfile>) => {
@@ -462,7 +508,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const workoutDuration = profileData.workoutDuration ?? getWorkoutDuration(profileData.workout_time) ?? prev.workoutDuration
       const workoutTypes = profileData.workoutTypes ?? prev.workoutTypes
       const workoutType = profileData.workoutType ?? getWorkoutTypeFromEquipment(profileData.equipment) ?? workoutTypes?.[0] ?? prev.workoutType
-      return {
+      const next: UserProfile = {
         ...prev,
         ...profileData,
         age: profileData.age === undefined ? prev.age : sanitizeProfileAge(profileData.age),
@@ -476,6 +522,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         weeklyPlan: profileData.weeklyPlan ? ensureRestDays(profileData.weeklyPlan) : prev.weeklyPlan ?? DEFAULT_WEEKLY_PLAN,
         onboardingComplete: true,
       }
+      getCurrentUserId().then(uid => { if (uid) saveProfileToSupabase(uid, next) })
+      return next
     })
   }, [setProfile])
 
