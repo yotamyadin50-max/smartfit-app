@@ -11,10 +11,11 @@ const APP_TITLE       = 'SmartFit'
 const TIMEOUT_MS      = 30000
 const MODELS = [
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemma-3-4b-it:free',
-  'deepseek/deepseek-r1:free',
-  'qwen/qwen2.5-7b-instruct:free',
-  'microsoft/phi-4:free',
+  'openai/gpt-oss-20b:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+  'google/gemma-4-31b-it:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
 ]
 
 export const MAX_PROMPT_LENGTH = 4000
