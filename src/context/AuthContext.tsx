@@ -67,13 +67,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // ── Supabase mode ─────────────────────────────────────────────────────────
-    // Restore session from Supabase on mount
+    // Restore session from Supabase on mount (with 5s timeout safety net)
+    let settled = false
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        console.warn('[Auth] getSession timed out — setting loading=false')
+        setLoading(false)
+      }
+    }, 5000)
+
     supabase.auth.getSession().then(({ data }) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutId)
       const session = data.session
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' })
       }
       setLoading(false)
+    }).catch(() => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timeoutId)
+        setLoading(false)
+      }
     })
 
     // Listen for login / logout events (e.g. email confirmation redirect)
@@ -85,7 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      settled = true
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [])
 
   // ── signIn ────────────────────────────────────────────────────────────────
