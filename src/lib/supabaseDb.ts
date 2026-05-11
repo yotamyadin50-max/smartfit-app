@@ -51,14 +51,14 @@ export async function loadProfileFromSupabase(userId: string): Promise<UserProfi
     .from('profiles')
     .select('profile')
     .eq('id', userId)
-    .single()
+    .maybeSingle()
 
-  if (error || !data?.profile) {
-    if (error?.code !== 'PGRST116') { // PGRST116 = row not found (normal for new users)
-      console.warn(TAG, '❌ load profile failed', error?.message)
-    } else {
-      console.log(TAG, 'ℹ️ no profile in cloud yet (new user)')
-    }
+  if (error) {
+    console.warn(TAG, '❌ load profile failed', error.message)
+    return null
+  }
+  if (!data?.profile) {
+    console.log(TAG, 'ℹ️ no profile in cloud yet (new user)')
     return null
   }
 
@@ -99,12 +99,13 @@ export async function loadStatsFromSupabase(userId: string): Promise<UserStats |
     .from('profiles')
     .select('stats')
     .eq('id', userId)
-    .single()
+    .maybeSingle()
 
-  if (error || !data?.stats) {
-    if (error?.code !== 'PGRST116') {
-      console.warn(TAG, '❌ load stats failed', error?.message)
-    }
+  if (error) {
+    console.warn(TAG, '❌ load stats failed', error.message)
+    return null
+  }
+  if (!data?.stats) {
     return null
   }
 

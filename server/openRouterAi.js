@@ -9,8 +9,12 @@ const OPENROUTER_URL  = 'https://openrouter.ai/api/v1/chat/completions'
 const HTTP_REFERER    = 'http://localhost:5173'
 const APP_TITLE       = 'SmartFit'
 const TIMEOUT_MS      = 30000
-const PRIMARY_MODEL   = 'meta-llama/llama-3.1-8b-instruct:free'
-const FALLBACK_MODEL  = 'microsoft/phi-3-mini-128k-instruct:free'
+const MODELS = [
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'google/gemma-2-9b-it:free',
+  'qwen/qwen-2.5-7b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
+]
 
 export const MAX_PROMPT_LENGTH = 4000
 
@@ -199,8 +203,8 @@ export async function handleOpenRouterAiPayload(payload) {
     }
   }
 
-  // 3. Try primary model, then fallback model
-  for (const model of [PRIMARY_MODEL, FALLBACK_MODEL]) {
+  // 3. Try each model in order until one works
+  for (const model of MODELS) {
     try {
       return await callOpenRouter(apiKey, model, prompt)
     } catch (err) {
