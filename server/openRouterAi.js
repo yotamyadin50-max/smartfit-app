@@ -10,10 +10,11 @@ const HTTP_REFERER    = 'http://localhost:5173'
 const APP_TITLE       = 'SmartFit'
 const TIMEOUT_MS      = 30000
 const MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-12b-it:free',
+  'deepseek/deepseek-r1-0528:free',
+  'qwen/qwen3-8b:free',
   'meta-llama/llama-3.1-8b-instruct:free',
-  'google/gemma-2-9b-it:free',
-  'qwen/qwen-2.5-7b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
 ]
 
 export const MAX_PROMPT_LENGTH = 4000
