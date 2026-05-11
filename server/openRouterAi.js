@@ -9,13 +9,18 @@ const OPENROUTER_URL  = 'https://openrouter.ai/api/v1/chat/completions'
 const HTTP_REFERER    = 'http://localhost:5173'
 const APP_TITLE       = 'SmartFit'
 const TIMEOUT_MS      = 30000
-// Ordered fastest-first: small models respond quicker and are less rate-limited
+// Diverse model list — different providers have separate rate-limit pools
 const MODELS = [
-  'meta-llama/llama-3.2-3b-instruct:free',   // 3B — fastest
-  'openai/gpt-oss-20b:free',                  // 20B — fast
-  'meta-llama/llama-3.3-70b-instruct:free',   // 70B — slower but high quality
-  'google/gemma-4-31b-it:free',               // fallback
-  'nousresearch/hermes-3-llama-3.1-405b:free',// last resort
+  'nvidia/nemotron-3-nano-30b-a3b:free',           // NVIDIA 30B — less traffic
+  'z-ai/glm-4.5-air:free',                         // Z-AI — less popular
+  'google/gemma-4-26b-a4b-it:free',                // Google 26B
+  'poolside/laguna-m.1:free',                       // Poolside — less popular
+  'openai/gpt-oss-20b:free',                        // OpenAI 20B
+  'qwen/qwen3-next-80b-a3b-instruct:free',          // Qwen 80B
+  'nvidia/nemotron-3-super-120b-a12b:free',         // NVIDIA 120B
+  'openai/gpt-oss-120b:free',                       // OpenAI 120B
+  'meta-llama/llama-3.2-3b-instruct:free',          // Meta 3B — small fallback
+  'nousresearch/hermes-3-llama-3.1-405b:free',      // last resort
 ]
 
 export const MAX_PROMPT_LENGTH = 4000
