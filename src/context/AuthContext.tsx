@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { readJson, removeJson, writeJson } from '../lib/storage'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface User {
   id: string
@@ -9,70 +12,126 @@ interface User {
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>
+  signIn:  (email: string, password: string) => Promise<{ error: string | null }>
+  signUp:  (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
+// ── Context ───────────────────────────────────────────────────────────────────
+
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const MOCK_STORAGE_KEY = 'smartfit_mock_user'
+// ── Mock fallback (used when Supabase is not configured) ──────────────────────
 
-function isMockUser(value: unknown): value is User {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      typeof (value as User).id === 'string' &&
-      typeof (value as User).email === 'string',
-  )
+const MOCK_KEY = 'smartfit_mock_user'
+
+function isMockUser(v: unknown): v is User {
+  return Boolean(v && typeof v === 'object' && typeof (v as User).id === 'string' && typeof (v as User).email === 'string')
 }
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function mockSignIn(email: string, password: string): { error: string | null; user: User | null } {
+function mockSignIn(email: string, password: string) {
   if (!email || !password) return { error: 'Email and password are required', user: null }
-  if (!isValidEmail(email)) return { error: 'Invalid email address', user: null }
-  if (password.length < 6) return { error: 'Password must be at least 6 characters', user: null }
+  if (!isValidEmail(email))  return { error: 'Invalid email address', user: null }
+  if (password.length < 6)   return { error: 'Password must be at least 6 characters', user: null }
   const user: User = { id: `mock-${btoa(email)}`, email }
-  writeJson(MOCK_STORAGE_KEY, user)
+  writeJson(MOCK_KEY, user)
   return { error: null, user }
 }
 
-function mockSignUp(email: string, password: string): { error: string | null; user: User | null } {
+function mockSignUp(email: string, password: string) {
   if (!email || !password) return { error: 'Email and password are required', user: null }
-  if (password.length < 6) return { error: 'Password must be at least 6 characters', user: null }
-  if (!isValidEmail(email)) return { error: 'Invalid email address', user: null }
+  if (!isValidEmail(email))  return { error: 'Invalid email address', user: null }
+  if (password.length < 6)   return { error: 'Password must be at least 6 characters', user: null }
   const user: User = { id: `mock-${btoa(email)}`, email }
-  writeJson(MOCK_STORAGE_KEY, user)
+  writeJson(MOCK_KEY, user)
   return { error: null, user }
 }
+
+// ── Provider ──────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser]       = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = readJson<unknown>(MOCK_STORAGE_KEY, null)
-    setUser(isMockUser(stored) ? stored : null)
-    setLoading(false)
+    if (!isSupabaseConfigured) {
+      // ── Mock mode ─────────────────────────────────────────────────────────
+      const stored = readJson<unknown>(MOCK_KEY, null)
+      setUser(isMockUser(stored) ? stored : null)
+      setLoading(false)
+      return
+    }
+
+    // ── Supabase mode ─────────────────────────────────────────────────────────
+    // Restore session from Supabase on mount
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data.session
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email ?? '' })
+      }
+      setLoading(false)
+    })
+
+    // Listen for login / logout events (e.g. email confirmation redirect)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({ id: session.user.id, email: session.user.email ?? '' })
+      } else {
+        setUser(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
+  // ── signIn ────────────────────────────────────────────────────────────────
+
   const signIn = async (email: string, password: string) => {
-    const result = mockSignIn(email, password)
-    if (result.user) setUser(result.user)
-    return { error: result.error }
+    if (!isSupabaseConfigured) {
+      const result = mockSignIn(email, password)
+      if (result.user) setUser(result.user)
+      return { error: result.error }
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error: error.message }
+    if (data.user) setUser({ id: data.user.id, email: data.user.email ?? '' })
+    return { error: null }
   }
+
+  // ── signUp ────────────────────────────────────────────────────────────────
 
   const signUp = async (email: string, password: string) => {
-    const result = mockSignUp(email, password)
-    if (result.user) setUser(result.user)
-    return { error: result.error }
+    if (!isSupabaseConfigured) {
+      const result = mockSignUp(email, password)
+      if (result.user) setUser(result.user)
+      return { error: result.error }
+    }
+
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) return { error: error.message }
+
+    // Supabase may require email confirmation — user object is present but
+    // session is null until confirmed. Show a helpful message if so.
+    if (data.user && !data.session) {
+      return { error: 'Check your email to confirm your account, then sign in.' }
+    }
+    if (data.user) setUser({ id: data.user.id, email: data.user.email ?? '' })
+    return { error: null }
   }
 
+  // ── signOut ───────────────────────────────────────────────────────────────
+
   const signOut = async () => {
-    removeJson(MOCK_STORAGE_KEY)
+    if (!isSupabaseConfigured) {
+      removeJson(MOCK_KEY)
+    } else {
+      await supabase.auth.signOut()
+    }
     setUser(null)
   }
 
