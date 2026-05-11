@@ -25,6 +25,30 @@ const MODELS = [
 
 export const MAX_PROMPT_LENGTH = 4000
 
+// ── Rate-limit memory ────────────────────────────────────────────────────────
+// Remembers which models are rate-limited and for how long (60s cooldown).
+// Persists across requests for the lifetime of the server process.
+
+const RATE_LIMIT_COOLDOWN_MS = 60_000
+const rateLimitedUntil = new Map() // modelId → timestamp when it's safe to retry
+
+function isRateLimited(model) {
+  const until = rateLimitedUntil.get(model)
+  if (!until) return false
+  if (Date.now() >= until) {
+    rateLimitedUntil.delete(model)
+    return false
+  }
+  return true
+}
+
+function markRateLimited(model) {
+  const until = Date.now() + RATE_LIMIT_COOLDOWN_MS
+  rateLimitedUntil.set(model, until)
+  const secsLeft = Math.ceil(RATE_LIMIT_COOLDOWN_MS / 1000)
+  console.log(`Model ${model} rate-limited — cooling down for ${secsLeft}s`)
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function sanitizePrompt(value) {
@@ -215,14 +239,18 @@ export async function handleOpenRouterAiPayload(payload) {
     }
   }
 
-  // 3. Try each model in order until one works
-  // On 429 (rate limit): skip immediately to the next model (no delay)
+  // 3. Try each model in order until one works.
+  //    Skip models that were rate-limited recently (60s cooldown).
   for (const model of MODELS) {
+    if (isRateLimited(model)) {
+      console.log(`Skipping ${model} (still cooling down)`)
+      continue
+    }
     try {
       return await callOpenRouter(apiKey, model, prompt)
     } catch (err) {
       if (err.isRateLimit) {
-        console.log(`Rate limited on ${model} — skipping to next model`)
+        markRateLimited(model)
       } else {
         console.log(`OpenRouter failed (${model}):`, err.message)
       }
