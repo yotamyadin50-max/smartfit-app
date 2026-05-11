@@ -11,10 +11,10 @@ const APP_TITLE       = 'SmartFit'
 const TIMEOUT_MS      = 30000
 const MODELS = [
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemma-3-12b-it:free',
-  'deepseek/deepseek-r1-0528:free',
-  'qwen/qwen3-8b:free',
-  'meta-llama/llama-3.1-8b-instruct:free',
+  'google/gemma-3-4b-it:free',
+  'deepseek/deepseek-r1:free',
+  'qwen/qwen2.5-7b-instruct:free',
+  'microsoft/phi-4:free',
 ]
 
 export const MAX_PROMPT_LENGTH = 4000
@@ -143,6 +143,11 @@ async function callOpenRouter(apiKey, model, prompt) {
   // Read body exactly once
   const raw = await response.text()
 
+  if (response.status === 429) {
+    console.log('OpenRouter rate-limited (429) — will retry after delay')
+    throw Object.assign(new Error(`HTTP 429: rate limited`), { isRateLimit: true })
+  }
+
   if (!response.ok) {
     console.log('OpenRouter failed:', response.status, raw.slice(0, 300))
     throw new Error(`HTTP ${response.status}: ${raw.slice(0, 120)}`)
@@ -205,11 +210,22 @@ export async function handleOpenRouterAiPayload(payload) {
   }
 
   // 3. Try each model in order until one works
+  // On 429 (rate limit): retry same model once after 2s before moving on
+  const sleep = ms => new Promise(r => setTimeout(r, ms))
+
   for (const model of MODELS) {
-    try {
-      return await callOpenRouter(apiKey, model, prompt)
-    } catch (err) {
-      console.log(`OpenRouter failed (${model}):`, err.message)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        return await callOpenRouter(apiKey, model, prompt)
+      } catch (err) {
+        if (err.isRateLimit && attempt === 1) {
+          console.log(`Rate limited on ${model} — retrying in 2s...`)
+          await sleep(2000)
+          continue
+        }
+        console.log(`OpenRouter failed (${model}):`, err.message)
+        break
+      }
     }
   }
 
