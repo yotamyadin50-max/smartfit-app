@@ -7,10 +7,14 @@
  *
  * Every function is safe to call even when Supabase is not configured —
  * they check isSupabaseConfigured and no-op silently.
+ *
+ * Console prefix: [SmartFit DB] — filter by this in DevTools to see all sync activity.
  */
 
 import { isSupabaseConfigured, supabase } from './supabase'
 import type { UserProfile, UserStats } from '../context/UserContext'
+
+const TAG = '[SmartFit DB]'
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 
@@ -29,7 +33,11 @@ export async function saveProfileToSupabase(userId: string, profile: UserProfile
       updated_at: new Date().toISOString(),
     })
 
-  if (error) console.warn('SmartFit: failed to save profile to Supabase', error.message)
+  if (error) {
+    console.warn(TAG, '❌ save profile failed', error.message)
+  } else {
+    console.log(TAG, '✅ profile saved', { userId, name: profile.name, goal: profile.goal })
+  }
 }
 
 /**
@@ -45,7 +53,16 @@ export async function loadProfileFromSupabase(userId: string): Promise<UserProfi
     .eq('id', userId)
     .single()
 
-  if (error || !data?.profile) return null
+  if (error || !data?.profile) {
+    if (error?.code !== 'PGRST116') { // PGRST116 = row not found (normal for new users)
+      console.warn(TAG, '❌ load profile failed', error?.message)
+    } else {
+      console.log(TAG, 'ℹ️ no profile in cloud yet (new user)')
+    }
+    return null
+  }
+
+  console.log(TAG, '✅ profile loaded from cloud', { userId })
   return data.profile as UserProfile
 }
 
@@ -65,7 +82,11 @@ export async function saveStatsToSupabase(userId: string, stats: UserStats): Pro
       updated_at: new Date().toISOString(),
     })
 
-  if (error) console.warn('SmartFit: failed to save stats to Supabase', error.message)
+  if (error) {
+    console.warn(TAG, '❌ save stats failed', error.message)
+  } else {
+    console.log(TAG, '✅ stats saved', { userId, xp: stats.xp, level: stats.level, streak: stats.streak })
+  }
 }
 
 /**
@@ -80,8 +101,16 @@ export async function loadStatsFromSupabase(userId: string): Promise<UserStats |
     .eq('id', userId)
     .single()
 
-  if (error || !data?.stats) return null
-  return data.stats as UserStats
+  if (error || !data?.stats) {
+    if (error?.code !== 'PGRST116') {
+      console.warn(TAG, '❌ load stats failed', error?.message)
+    }
+    return null
+  }
+
+  const s = data.stats as UserStats
+  console.log(TAG, '✅ stats loaded from cloud', { xp: s.xp, level: s.level, streak: s.streak })
+  return s
 }
 
 // ── Progress (workouts, cardio, meal plans) ───────────────────────────────────
@@ -112,7 +141,11 @@ export async function saveProgressEntryToSupabase(
     .from('progress')
     .insert({ ...entry, user_id: userId })
 
-  if (error) console.warn('SmartFit: failed to save progress to Supabase', error.message)
+  if (error) {
+    console.warn(TAG, '❌ save progress failed', error.message)
+  } else {
+    console.log(TAG, '✅ progress entry saved', { userId, type: entry.type, duration: entry.duration, date: entry.date })
+  }
 }
 
 /**
@@ -132,10 +165,13 @@ export async function loadProgressFromSupabase(userId: string): Promise<Progress
     .limit(200)
 
   if (error) {
-    console.warn('SmartFit: failed to load progress from Supabase', error.message)
+    console.warn(TAG, '❌ load progress failed', error.message)
     return []
   }
-  return (data ?? []) as ProgressRow[]
+
+  const rows = (data ?? []) as ProgressRow[]
+  console.log(TAG, `✅ progress loaded from cloud — ${rows.length} entries`)
+  return rows
 }
 
 // ── Chat history ──────────────────────────────────────────────────────────────
@@ -163,7 +199,11 @@ export async function saveChatMessageToSupabase(
     .from('chat_messages')
     .insert({ ...message, user_id: userId })
 
-  if (error) console.warn('SmartFit: failed to save chat message to Supabase', error.message)
+  if (error) {
+    console.warn(TAG, '❌ save chat message failed', error.message)
+  } else {
+    console.log(TAG, `✅ chat message saved [${message.role}]`, message.text.slice(0, 60))
+  }
 }
 
 /**
@@ -180,10 +220,13 @@ export async function loadChatHistoryFromSupabase(userId: string): Promise<ChatR
     .limit(30)
 
   if (error) {
-    console.warn('SmartFit: failed to load chat history from Supabase', error.message)
+    console.warn(TAG, '❌ load chat history failed', error.message)
     return []
   }
-  return ((data ?? []) as ChatRow[]).reverse()
+
+  const rows = ((data ?? []) as ChatRow[]).reverse()
+  console.log(TAG, `✅ chat history loaded from cloud — ${rows.length} messages`)
+  return rows
 }
 
 // ── Full sync on login ────────────────────────────────────────────────────────
@@ -196,10 +239,71 @@ export async function loadChatHistoryFromSupabase(userId: string): Promise<ChatR
 export async function loadUserDataFromSupabase(userId: string) {
   if (!isSupabaseConfigured) return null
 
+  console.log(TAG, '🔄 loading user data from cloud...', { userId })
+
   const [profile, stats] = await Promise.all([
     loadProfileFromSupabase(userId),
     loadStatsFromSupabase(userId),
   ])
 
   return { profile, stats }
+}
+
+// ── Connection check ──────────────────────────────────────────────────────────
+
+/**
+ * Quick sanity-check: verifies Supabase is reachable and the current session is valid.
+ * Call from DevTools: import('/src/lib/supabaseDb.ts').then(m => m.checkSupabaseConnection())
+ */
+export async function checkSupabaseConnection(): Promise<void> {
+  if (!isSupabaseConfigured) {
+    console.warn(TAG, '⚠️  Supabase is NOT configured — running in mock mode. Check your .env file.')
+    return
+  }
+
+  console.log(TAG, '🔍 checking Supabase connection...')
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const session = sessionData.session
+
+  if (!session) {
+    console.warn(TAG, '⚠️  No active session — user is not logged in.')
+    return
+  }
+
+  const userId = session.user.id
+  console.log(TAG, '👤 logged in as', session.user.email, '| userId:', userId)
+
+  // Check each table
+  const [profileResult, progressResult, chatResult] = await Promise.all([
+    supabase.from('profiles').select('id, updated_at').eq('id', userId).single(),
+    supabase.from('progress').select('id, type, date', { count: 'exact' }).eq('user_id', userId),
+    supabase.from('chat_messages').select('id', { count: 'exact' }).eq('user_id', userId),
+  ])
+
+  console.group(TAG + ' 📊 database summary for this user')
+  if (profileResult.error) {
+    console.warn('  profiles table:', profileResult.error.message)
+  } else if (profileResult.data) {
+    console.log('  ✅ profiles row found, last updated:', profileResult.data.updated_at)
+  } else {
+    console.log('  ℹ️  no profile row yet')
+  }
+
+  if (progressResult.error) {
+    console.warn('  progress table:', progressResult.error.message)
+  } else {
+    console.log(`  ✅ progress entries: ${progressResult.count ?? 0}`)
+    if (progressResult.data?.length) {
+      console.table(progressResult.data.slice(0, 5))
+    }
+  }
+
+  if (chatResult.error) {
+    console.warn('  chat_messages table:', chatResult.error.message)
+  } else {
+    console.log(`  ✅ chat messages: ${chatResult.count ?? 0}`)
+  }
+
+  console.groupEnd()
 }
