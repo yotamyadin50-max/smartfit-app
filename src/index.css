@@ -437,6 +437,20 @@ button { color: inherit; }
 .dash-weekly-text small { font-size: 12px; color: var(--text-secondary); }
 .dash-weekly-arrow { font-size: 20px; color: var(--accent-yellow); font-weight: 700; flex-shrink: 0; }
 
+.dash-xp-wrap { display: flex; flex-direction: column; gap: 5px; margin-top: -4px; }
+.dash-xp-labels { display: flex; justify-content: space-between; font-size: 12px; }
+.dash-xp-label-left { color: var(--text-secondary); font-weight: 600; }
+.dash-xp-label-right { color: var(--accent-yellow); font-weight: 700; }
+.dash-xp-track { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.dash-xp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-yellow) 100%);
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 6px rgba(245,158,11,0.4);
+}
+.dash-xp-sub { font-size: 11px; color: var(--text-secondary); text-align: center; }
+
 .dash-secondary-row { display: flex; gap: 10px; }
 .dash-secondary-btn {
   flex: 1;

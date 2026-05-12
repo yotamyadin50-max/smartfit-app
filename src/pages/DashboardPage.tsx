@@ -21,6 +21,12 @@ export default function DashboardPage() {
   const displayName = user?.email?.split('@')[0] ?? (isHebrew ? 'ספורטאי' : 'Athlete')
   const workoutName = isHebrew ? todayWorkout.nameHe : todayWorkout.name
 
+  // XP progress to next level
+  const xpForThisLevel = stats.level * 200
+  const xpIntoLevel = stats.xp % xpForThisLevel
+  const xpPct = Math.min(xpIntoLevel / xpForThisLevel, 1)
+  const xpLeft = xpForThisLevel - xpIntoLevel
+
   return (
     <div className="app-layout">
       <div className="dash-page">
@@ -40,7 +46,7 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        {/* ── Streak strip ── */}
+        {/* ── Streak + XP strip ── */}
         <div className="dash-streak-strip">
           <span className="dash-streak-item">
             🔥 <strong>{stats.streak}</strong>
@@ -51,6 +57,26 @@ export default function DashboardPage() {
             ⭐ <strong>{isHebrew ? `רמה ${stats.level}` : `Level ${stats.level}`}</strong>
             <span>{stats.xp} XP</span>
           </span>
+        </div>
+
+        {/* ── XP progress bar ── */}
+        <div className="dash-xp-wrap">
+          <div className="dash-xp-labels">
+            <span className="dash-xp-label-left">
+              {isHebrew ? `רמה ${stats.level}` : `Level ${stats.level}`}
+            </span>
+            <span className="dash-xp-label-right">
+              {isHebrew
+                ? `עוד ${xpLeft} XP לרמה ${stats.level + 1}`
+                : `${xpLeft} XP to Level ${stats.level + 1}`}
+            </span>
+          </div>
+          <div className="dash-xp-track">
+            <div className="dash-xp-fill" style={{ width: `${xpPct * 100}%` }} />
+          </div>
+          <p className="dash-xp-sub">
+            {xpIntoLevel} / {xpForThisLevel} XP
+          </p>
         </div>
 
         {/* ── Today's workout (big card) ── */}
