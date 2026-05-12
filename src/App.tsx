@@ -27,10 +27,10 @@ const ProgressPage = lazy(() => import('./pages/ProgressPage'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  const { profile } = useUser()
+  const { profile, cloudSynced } = useUser()
   const { t } = useI18n()
 
-  if (loading) return <div className="spinner-screen">{t('loading')}</div>
+  if (loading || !cloudSynced) return <div className="spinner-screen">{t('loading')}</div>
   if (!user) return <Navigate to="/login" replace />
   if (!profile.onboardingComplete) return <Navigate to="/onboarding" replace />
   return <>{children}</>
@@ -46,9 +46,9 @@ function PublicRoute({ children }: { children: ReactNode }) {
 
 function OnboardingRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  const { profile } = useUser()
+  const { profile, cloudSynced } = useUser()
   const { t } = useI18n()
-  if (loading) return <div className="spinner-screen">{t('loading')}</div>
+  if (loading || !cloudSynced) return <div className="spinner-screen">{t('loading')}</div>
   // Already done → go to app
   if (user && profile.onboardingComplete) return <Navigate to="/dashboard" replace />
   // Allow unauthenticated users — auth is step 1 of the onboarding itself

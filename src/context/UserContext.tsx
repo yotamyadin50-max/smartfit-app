@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import {
@@ -299,6 +299,7 @@ function isStats(value: unknown): value is UserStats {
 interface UserContextValue {
   profile: UserProfile
   stats: UserStats
+  cloudSynced: boolean   // true once Supabase data has been loaded for the current session
   updateProfile: (updates: Partial<UserProfile>) => void
   resetUserData: () => void
   addXP: (amount: number) => void
@@ -422,6 +423,8 @@ function getWorkoutTypeFromEquipment(equipment?: EquipmentOption[]): WorkoutType
 export function UserProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useLocalStorage<UserProfile>('smartfit_profile', DEFAULT_PROFILE, isProfile)
   const [stats, setStats] = useLocalStorage<UserStats>('smartfit_stats', DEFAULT_STATS, isStats)
+  // true once we've finished loading from Supabase for the current session
+  const [cloudSynced, setCloudSynced] = useState(!isSupabaseConfigured)
 
   // ── Sync from Supabase on login ────────────────────────────────────────────
   useEffect(() => {
@@ -429,27 +432,34 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     // Restore cloud data for an already-logged-in user on mount
     supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) return
+      if (!data.session?.user) {
+        setCloudSynced(true)   // no session → nothing to load
+        return
+      }
       const uid = data.session.user.id
       const cloudData = await loadUserDataFromSupabase(uid)
       if (cloudData?.profile) setProfile(cloudData.profile)
       if (cloudData?.stats) setStats(cloudData.stats)
       syncProgressFromSupabase(uid)
+      setCloudSynced(true)
     })
 
     // Also listen for future sign-in / sign-out events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
+        setCloudSynced(false)   // loading started — pause routing decisions
         const uid = session.user.id
         const cloudData = await loadUserDataFromSupabase(uid)
         if (cloudData?.profile) setProfile(cloudData.profile)
         if (cloudData?.stats) setStats(cloudData.stats)
         syncProgressFromSupabase(uid)
+        setCloudSynced(true)    // done
       }
       if (event === 'SIGNED_OUT') {
         // Clear local state so the next user starts clean
         setProfile(getFreshDefaultProfile())
         setStats({ ...NEW_ACCOUNT_STATS })
+        setCloudSynced(true)    // no cloud data needed for a logged-out state
       }
     })
 
@@ -535,7 +545,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [setProfile])
 
   return (
-    <UserContext.Provider value={{ profile, stats, updateProfile, resetUserData, addXP, incrementStreak, completeOnboarding }}>
+    <UserContext.Provider value={{ profile, stats, cloudSynced, updateProfile, resetUserData, addXP, incrementStreak, completeOnboarding }}>
       {children}
     </UserContext.Provider>
   )
