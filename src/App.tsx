@@ -1,27 +1,26 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode, useEffect } from 'react'
 import { useAuth } from './context/AuthContext'
 import { useUser } from './context/UserContext'
 import { useI18n } from './context/I18nContext'
 import { savePendingInvite, acceptInvite, getPendingInvite, clearPendingInvite } from './lib/friendsService'
 
-import LandingPage from './pages/LandingPage'
-import LoginPage from './pages/LoginPage'
-import SignupPage from './pages/SignupPage'
-import OnboardingPage from './pages/OnboardingPage'
-import DashboardPage from './pages/DashboardPage'
-import WorkoutPage from './pages/WorkoutPage'
-import WorkoutSummaryPage from './pages/WorkoutSummaryPage'
-import NutritionPage from './pages/NutritionPage'
-import SettingsPage from './pages/SettingsPage'
-import TrainingPlanPage from './pages/TrainingPlanPage'
-import BadgesPage from './pages/BadgesPage'
-import RecipesPage from './pages/RecipesPage'
-import SocialPage from './pages/SocialPage'
-import WearablePage from './pages/WearablePage'
-import RemindersPage from './pages/RemindersPage'
 import AnimatedWaveBackground from './components/AnimatedWaveBackground'
 
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const WorkoutPage = lazy(() => import('./pages/WorkoutPage'))
+const WorkoutSummaryPage = lazy(() => import('./pages/WorkoutSummaryPage'))
+const NutritionPage = lazy(() => import('./pages/NutritionPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const TrainingPlanPage = lazy(() => import('./pages/TrainingPlanPage'))
+const BadgesPage = lazy(() => import('./pages/BadgesPage'))
+const RecipesPage = lazy(() => import('./pages/RecipesPage'))
+const SocialPage = lazy(() => import('./pages/SocialPage'))
+const WearablePage = lazy(() => import('./pages/WearablePage'))
+const RemindersPage = lazy(() => import('./pages/RemindersPage'))
 const AIToolsPage = lazy(() => import('./pages/AIToolsPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
 const ProgressPage = lazy(() => import('./pages/ProgressPage'))
@@ -50,8 +49,9 @@ function OnboardingRoute({ children }: { children: ReactNode }) {
   const { profile } = useUser()
   const { t } = useI18n()
   if (loading) return <div className="spinner-screen">{t('loading')}</div>
-  if (!user) return <Navigate to="/login" replace />
-  if (profile.onboardingComplete) return <Navigate to="/dashboard" replace />
+  // Already done → go to app
+  if (user && profile.onboardingComplete) return <Navigate to="/dashboard" replace />
+  // Allow unauthenticated users — auth is step 1 of the onboarding itself
   return <>{children}</>
 }
 
@@ -99,7 +99,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-          <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+          <Route path="/signup" element={<Navigate to="/onboarding" replace />} />
 
           <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
 

@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, type FormEvent } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { useI18n } from '../context/I18nContext'
+import { useAuth } from '../context/AuthContext'
 import OnboardingQuestionnaire from '../components/OnboardingQuestionnaire'
 import {
   DEFAULT_PROFILE_AGE,
@@ -202,6 +203,105 @@ function NavButtons({ onBack, onSkip, canContinue = true, isFirst = false, finis
   )
 }
 
+function StepAuth({ onNext, step, total }: Pick<StepProps, 'onNext' | 'step' | 'total'>) {
+  const { signUp } = useAuth()
+  const { isHebrew } = useI18n()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const passwordStrength = (() => {
+    if (password.length === 0) return 0
+    let score = 0
+    if (password.length >= 8)  score++
+    if (password.length >= 12) score++
+    if (/[0-9]/.test(password)) score++
+    if (/[^a-zA-Z0-9]/.test(password)) score++
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++
+    return Math.min(score, 4)
+  })()
+  const strengthLabelHe = ['', 'חלשה', 'בינונית', 'טובה', 'חזקה']
+  const strengthLabelEn = ['', 'Weak', 'Fair', 'Good', 'Strong']
+  const strengthColor   = ['', '#ef4444', '#f59e0b', '#3b82f6', '#22c55e']
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    if (password.length < 8) {
+      setError(isHebrew ? 'הסיסמה חייבת להכיל לפחות 8 תווים' : 'Password must be at least 8 characters')
+      return
+    }
+    if (!/[0-9]/.test(password) && !/[^a-zA-Z0-9]/.test(password)) {
+      setError(isHebrew ? 'הסיסמה חייבת להכיל לפחות ספרה אחת או תו מיוחד' : 'Password must contain at least one number or special character')
+      return
+    }
+    if (password !== confirm) {
+      setError(isHebrew ? 'הסיסמאות אינן תואמות' : 'Passwords do not match')
+      return
+    }
+    setLoading(true)
+    const { error: signUpError } = await signUp(email.trim(), password)
+    setLoading(false)
+    if (signUpError) { setError(signUpError); return }
+    onNext({})
+  }
+
+  return (
+    <form className="onboard-step" onSubmit={handleSubmit} noValidate>
+      <ProgressHeader step={step} total={total} />
+      <h2 className="onboard-title">{isHebrew ? 'יצירת חשבון' : 'Create your account'}</h2>
+      <p className="onboard-sub">{isHebrew ? 'הנתונים שלך שמורים ומאובטחים.' : 'Your data is saved and secure.'}</p>
+
+      {error && <div className="error-banner">{error}</div>}
+
+      <div className="form-group">
+        <label className="form-label">{isHebrew ? 'אימייל' : 'Email'}</label>
+        <input id="ob-email" type="email" className="form-input" placeholder="you@example.com"
+          value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required />
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">{isHebrew ? 'סיסמה' : 'Password'}</label>
+        <input id="ob-password" type="password" className="form-input"
+          placeholder={isHebrew ? 'לפחות 8 תווים' : 'At least 8 characters'}
+          value={password} onChange={e => setPassword(e.target.value)}
+          autoComplete="new-password" minLength={8} required />
+        {password.length > 0 && (
+          <div className="password-strength-wrap">
+            <div className="password-strength-bar">
+              {[1,2,3,4].map(n => (
+                <div key={n} className="password-strength-seg"
+                  style={{ background: n <= passwordStrength ? strengthColor[passwordStrength] : 'var(--border)' }} />
+              ))}
+            </div>
+            <span className="password-strength-label" style={{ color: strengthColor[passwordStrength] }}>
+              {isHebrew ? strengthLabelHe[passwordStrength] : strengthLabelEn[passwordStrength]}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">{isHebrew ? 'אימות סיסמה' : 'Confirm password'}</label>
+        <input id="ob-confirm" type="password" className="form-input" placeholder="••••••••"
+          value={confirm} onChange={e => setConfirm(e.target.value)}
+          autoComplete="new-password" required />
+      </div>
+
+      <button type="submit" className="btn-primary onboard-next" disabled={loading}>
+        {loading ? (isHebrew ? 'יוצר חשבון...' : 'Creating account…') : (isHebrew ? 'המשך' : 'Continue')}
+      </button>
+
+      <p className="auth-footer" style={{ marginTop: 16 }}>
+        {isHebrew ? 'כבר יש חשבון?' : 'Already have an account?'}{' '}
+        <Link to="/login">{isHebrew ? 'כניסה' : 'Sign in'}</Link>
+      </p>
+    </form>
+  )
+}
+
 function StepBasic({ onNext, onSkip, step, total }: StepProps) {
   const { language, t } = useI18n()
   const text = copy[language]
@@ -322,34 +422,105 @@ function StepLevel({ onBack, onNext, onSkip, step, total }: StepProps) {
   )
 }
 
-function StepTime({ onBack, onNext, onSkip, step, total }: StepProps) {
+type ExtendedDuration = 10 | 20 | 30 | 45 | 60 | 75 | 90
+
+function StepTime({ data, onBack, onNext, onSkip, step, total }: StepProps) {
   const { language } = useI18n()
   const text = copy[language]
+  const isHebrew = language === 'he'
+
+  const isMultiLocation =
+    (data.workoutTypes ?? []).includes('gym') &&
+    (data.workoutTypes ?? []).includes('home')
+
   const [days, setDays] = useState(3)
-  const [duration, setDuration] = useState<UserProfile['workoutDuration']>(20)
+  const [duration, setDuration] = useState<UserProfile['workoutDuration']>(30)
+  const [homeDuration, setHomeDuration] = useState<ExtendedDuration>(30)
+  const [gymDuration, setGymDuration] = useState<ExtendedDuration>(45)
+
   const durations: UserProfile['workoutDuration'][] = [10, 20, 30, 45]
+  const extendedDurations: ExtendedDuration[] = [20, 30, 45, 60, 75, 90]
+
+  const durationLabel = (n: number) => `${n} ${isHebrew ? 'דק׳' : 'min'}`
 
   return (
     <form className="onboard-step" onSubmit={event => {
       event.preventDefault()
-      onNext({ workout_days: days, workout_time: duration, workoutDuration: duration })
+      if (isMultiLocation) {
+        onNext({
+          workout_days: days,
+          workout_time: 30,
+          workoutDuration: 30,
+          homeWorkoutDuration: homeDuration,
+          gymWorkoutDuration: gymDuration,
+        })
+      } else {
+        onNext({ workout_days: days, workout_time: duration, workoutDuration: duration })
+      }
     }}>
       <ProgressHeader step={step} total={total} />
       <h2 className="onboard-title">{text.timeTitle}</h2>
       <p className="onboard-sub">{text.timeSub}</p>
+
       <div className="form-group">
         <label className="form-label">{text.trainingDays}</label>
-        <input className="form-input" type="number" min={1} max={7} value={days} onChange={event => setDays(sanitizeNumber(event.target.value, 3, 1, 7))} />
+        <input className="form-input" type="number" min={1} max={7} value={days}
+          onChange={event => setDays(sanitizeNumber(event.target.value, 3, 1, 7))} />
       </div>
-      <p className="form-label">{text.timePerWorkout}</p>
-      <div className="option-grid col-4">
-        {durations.map(option => (
-          <button type="button" key={option} className={`option-card compact${duration === option ? ' selected' : ''}`} onClick={() => setDuration(option)}>
-            <span className="option-label">{option === 45 ? '45+' : option} דק׳</span>
-          </button>
-        ))}
-      </div>
-      <NavButtons onBack={onBack} onSkip={() => onSkip({ workout_days: 3, workout_time: 20, workoutDuration: 20 })} />
+
+      {isMultiLocation ? (
+        <>
+          <p className="form-label" style={{ marginTop: 18 }}>
+            🏠 {isHebrew ? 'זמן אימון בבית' : 'Home workout duration'}
+          </p>
+          <div className="option-grid col-3">
+            {extendedDurations.map(n => (
+              <button type="button" key={`home-${n}`}
+                className={`option-card compact${homeDuration === n ? ' selected' : ''}`}
+                onClick={() => setHomeDuration(n)}>
+                <span className="option-label">{durationLabel(n)}</span>
+              </button>
+            ))}
+          </div>
+
+          <p className="form-label" style={{ marginTop: 18 }}>
+            🏋️ {isHebrew ? 'זמן אימון בחדר כושר' : 'Gym workout duration'}
+          </p>
+          <div className="option-grid col-3">
+            {extendedDurations.map(n => (
+              <button type="button" key={`gym-${n}`}
+                className={`option-card compact${gymDuration === n ? ' selected' : ''}`}
+                onClick={() => setGymDuration(n)}>
+                <span className="option-label">{durationLabel(n)}</span>
+              </button>
+            ))}
+          </div>
+
+          <p className="option-hint" style={{ marginTop: 10 }}>
+            {isHebrew
+              ? `🏠 ${homeDuration} דק׳ בבית · 🏋️ ${gymDuration} דק׳ בחדר כושר`
+              : `🏠 ${homeDuration} min home · 🏋️ ${gymDuration} min gym`}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="form-label">{text.timePerWorkout}</p>
+          <div className="option-grid col-4">
+            {durations.map(option => (
+              <button type="button" key={option}
+                className={`option-card compact${duration === option ? ' selected' : ''}`}
+                onClick={() => setDuration(option)}>
+                <span className="option-label">{durationLabel(option)}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <NavButtons onBack={onBack}
+        onSkip={() => isMultiLocation
+          ? onSkip({ workout_days: 3, workout_time: 30, workoutDuration: 30, homeWorkoutDuration: 30, gymWorkoutDuration: 45 })
+          : onSkip({ workout_days: 3, workout_time: 20, workoutDuration: 20 })} />
     </form>
   )
 }
@@ -378,11 +549,18 @@ function StepEquipment({ onBack, onNext, onSkip, step, total }: StepProps) {
     <form className="onboard-step" onSubmit={event => {
       event.preventDefault()
       const equipment: EquipmentOption[] = selected.length ? selected : ['none']
+      const hasGym = equipment.includes('gym')
+      const hasHomeEquip = equipment.some(e => e === 'none' || e === 'dumbbells' || e === 'bands')
+      const workoutTypes: UserProfile['workoutTypes'] = hasGym && hasHomeEquip
+        ? ['gym', 'home']
+        : hasGym
+        ? ['gym']
+        : ['home']
       onNext({
         devices: { cardioLocation, smartScale, smartWatch },
         equipment,
-        workoutType: equipment.includes('gym') ? 'gym' : 'home',
-        workoutTypes: equipment.includes('gym') ? ['gym'] : ['home'],
+        workoutType: workoutTypes[0],
+        workoutTypes,
       })
     }}>
       <ProgressHeader step={step} total={total} />
@@ -572,13 +750,15 @@ function StepHabits({ onBack, onNext, onSkip, step, total }: StepProps) {
   )
 }
 
-const TOTAL_STEPS = 8
+const TOTAL_STEPS = 9  // step 1 = auth, steps 2-9 = profile questions
 
 export default function OnboardingPage() {
-  const [step, setStep] = useState(1)
-  const [collected, setCollected] = useState<Partial<UserProfile>>({})
+  const { user } = useAuth()
   const { completeOnboarding } = useUser()
   const navigate = useNavigate()
+  // If already logged in, skip the auth step
+  const [step, setStep] = useState(() => user ? 2 : 1)
+  const [collected, setCollected] = useState<Partial<UserProfile>>({})
 
   const finishOrContinue = (data: Partial<UserProfile>) => {
     const merged = { ...collected, ...data }
@@ -608,7 +788,8 @@ export default function OnboardingPage() {
     navigate('/dashboard')
   }
 
-  const handleBack = () => setStep(current => Math.max(1, current - 1))
+  // Back: step 1 is auth — can't go back further; skip step 1 if already logged in
+  const handleBack = () => setStep(current => Math.max(user ? 2 : 1, current - 1))
   const handleSkip = (data: Partial<UserProfile> = {}) => finishOrContinue(data)
   const commonProps = { data: collected, onBack: handleBack, onNext: finishOrContinue, onSkip: handleSkip, step, total: TOTAL_STEPS }
 
@@ -616,14 +797,15 @@ export default function OnboardingPage() {
     <OnboardingQuestionnaire>
       <div className="onboard-layout">
         <div className="onboard-card">
-          {step === 1 && <StepBasic {...commonProps} />}
-          {step === 2 && <StepGoals {...commonProps} />}
-          {step === 3 && <StepLevel {...commonProps} />}
-          {step === 4 && <StepTime {...commonProps} />}
+          {step === 1 && <StepAuth onNext={finishOrContinue} step={step} total={TOTAL_STEPS} />}
+          {step === 2 && <StepBasic {...commonProps} />}
+          {step === 3 && <StepGoals {...commonProps} />}
+          {step === 4 && <StepLevel {...commonProps} />}
           {step === 5 && <StepEquipment {...commonProps} />}
-          {step === 6 && <StepNutrition {...commonProps} />}
-          {step === 7 && <StepHealth {...commonProps} />}
-          {step === 8 && <StepHabits {...commonProps} />}
+          {step === 6 && <StepTime {...commonProps} />}
+          {step === 7 && <StepNutrition {...commonProps} />}
+          {step === 8 && <StepHealth {...commonProps} />}
+          {step === 9 && <StepHabits {...commonProps} />}
         </div>
       </div>
     </OnboardingQuestionnaire>
