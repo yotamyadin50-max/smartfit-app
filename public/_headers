@@ -1,0 +1,12 @@
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self), payment=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+/api/*
+  Access-Control-Allow-Origin: https://smartfit-app.com
+  Access-Control-Allow-Methods: POST
+  Access-Control-Allow-Headers: Content-Type

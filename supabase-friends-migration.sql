@@ -37,8 +37,12 @@ ALTER TABLE friendships           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE friend_notifications  ENABLE ROW LEVEL SECURITY;
 
 -- Policies: friend_invites
-CREATE POLICY "Anyone can read invites"   ON friend_invites FOR SELECT USING (true);
+-- SELECT: any authenticated user can read an invite by ID (the UUID is the secret token — unguessable)
+CREATE POLICY "Authenticated users can read invites" ON friend_invites FOR SELECT USING (auth.uid() IS NOT NULL);
+-- INSERT: only the creator can create their own invite
 CREATE POLICY "Owner creates invite"      ON friend_invites FOR INSERT WITH CHECK (auth.uid() = creator_id);
+-- DELETE: only the creator can delete their own invite
+CREATE POLICY "Owner deletes invite"      ON friend_invites FOR DELETE USING (auth.uid() = creator_id);
 
 -- Policies: friendships
 CREATE POLICY "See own friendships"       ON friendships FOR SELECT USING (auth.uid() = user_a_id OR auth.uid() = user_b_id);

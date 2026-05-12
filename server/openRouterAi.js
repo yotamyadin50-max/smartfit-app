@@ -25,7 +25,41 @@ const MODELS = [
 
 export const MAX_PROMPT_LENGTH = 4000
 
-// ── Rate-limit memory ────────────────────────────────────────────────────────
+// ── Per-IP rate limiting ─────────────────────────────────────────────────────
+// Prevents a single user/bot from spamming /api/ai.
+// Window: 60 seconds. Max requests per window: 15.
+
+const IP_RATE_WINDOW_MS  = 60_000   // 1 minute window
+const IP_RATE_MAX        = 15       // max AI requests per minute per IP
+const ipRequestLog = new Map()      // ip → [timestamp, ...]
+
+function getClientIp(req) {
+  // Support reverse-proxy headers (Vercel, Netlify, Cloudflare)
+  const forwarded = req.headers?.['x-forwarded-for']
+  if (forwarded) return forwarded.split(',')[0].trim()
+  return req.socket?.remoteAddress ?? 'unknown'
+}
+
+function checkIpRateLimit(req) {
+  const ip  = getClientIp(req)
+  const now = Date.now()
+  const log = (ipRequestLog.get(ip) ?? []).filter(t => now - t < IP_RATE_WINDOW_MS)
+  if (log.length >= IP_RATE_MAX) {
+    const retryAfter = Math.ceil((log[0] + IP_RATE_WINDOW_MS - now) / 1000)
+    return { limited: true, retryAfter }
+  }
+  log.push(now)
+  ipRequestLog.set(ip, log)
+  // Evict stale IPs every 500 entries to prevent memory growth
+  if (ipRequestLog.size > 500) {
+    for (const [k, v] of ipRequestLog) {
+      if (v.every(t => now - t >= IP_RATE_WINDOW_MS)) ipRequestLog.delete(k)
+    }
+  }
+  return { limited: false }
+}
+
+// ── Per-model rate-limit memory ──────────────────────────────────────────────
 // Remembers which models are rate-limited and for how long (60s cooldown).
 // Persists across requests for the lifetime of the server process.
 
@@ -294,3 +328,5 @@ export function getPublicErrorResponse(error) {
   const message = typeof error?.message === 'string' ? error.message : 'Request failed.'
   return { status, body: { error: message, status } }
 }
+
+export { checkIpRateLimit }
