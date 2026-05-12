@@ -199,6 +199,9 @@ function escapeAttr(value) {
     .replaceAll('>', '&gt;')
 }
 
+// Same as escapeAttr but also escapes single quotes — use for any user data in innerHTML
+const escapeHtml = escapeAttr
+
 function clampNumber(value, min, max, fallback) {
   const number = Number(value)
   if (!Number.isFinite(number)) return fallback
@@ -407,8 +410,8 @@ function renderChart(root, entries) {
     bar.className = 'sf-ai-tools-chart-bar'
     bar.innerHTML = `
       <span style="height: ${Math.max(8, (item.count / maxCount) * 100)}%"></span>
-      <b>${item.count}</b>
-      <small>${t[`day${item.day[0].toUpperCase()}${item.day.slice(1)}`]}</small>
+      <b>${escapeHtml(String(item.count))}</b>
+      <small>${escapeHtml(t[`day${item.day[0].toUpperCase()}${item.day.slice(1)}`] ?? item.day)}</small>
     `
     chart.appendChild(bar)
   })
@@ -450,10 +453,10 @@ function renderProgress(root) {
     item.className = 'sf-ai-tools-history-item'
     item.innerHTML = `
       <div>
-        <strong>${t[entry.type] ?? entry.type}</strong>
-        <span>${formatEntryDate(entry.date)} · ${t[entry.difficulty] ?? entry.difficulty} · ${entry.completed ? t.completed : t.notCompleted}</span>
+        <strong>${escapeHtml(t[entry.type] ?? entry.type)}</strong>
+        <span>${escapeHtml(formatEntryDate(entry.date))} · ${escapeHtml(t[entry.difficulty] ?? entry.difficulty)} · ${entry.completed ? escapeHtml(t.completed) : escapeHtml(t.notCompleted)}</span>
       </div>
-      <b>${entry.duration} ${t.minutes}</b>
+      <b>${escapeHtml(String(entry.duration))} ${escapeHtml(t.minutes)}</b>
     `
     history.appendChild(item)
   })

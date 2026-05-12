@@ -34,7 +34,15 @@ export type FriendNotification = {
 
 const PENDING_INVITE_KEY = 'smartfit_pending_invite'
 
+// UUID v4 pattern — invite codes must match this exactly
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidInviteCode(code: string): boolean {
+  return UUID_RE.test(code)
+}
+
 export function savePendingInvite(code: string) {
+  if (!isValidInviteCode(code)) return   // silently drop malformed codes
   writeJson(PENDING_INVITE_KEY, code)
 }
 
