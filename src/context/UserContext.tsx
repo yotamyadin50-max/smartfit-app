@@ -6,6 +6,7 @@ import {
   saveProfileToSupabase,
   saveStatsToSupabase,
 } from '../lib/supabaseDb'
+import { getLevelFromXp } from '../lib/animalRanks'
 import { syncProgressFromSupabase } from '../progressStorage'
 
 async function getCurrentUserId(): Promise<string | null> {
@@ -48,6 +49,8 @@ export interface UserProfile {
   workout_days?: number
   workout_time?: 10 | 15 | 20 | 30 | 45 | 60
   workoutDuration: 10 | 15 | 20 | 30 | 45 | 60
+  homeWorkoutDuration?: 10 | 20 | 30 | 45 | 60 | 75 | 90
+  gymWorkoutDuration?: 10 | 20 | 30 | 45 | 60 | 75 | 90
   workoutType: WorkoutType
   workoutTypes?: WorkoutType[]
   gymDays?: WeekDay[]
@@ -305,10 +308,6 @@ interface UserContextValue {
 
 const UserContext = createContext<UserContextValue | null>(null)
 
-function xpForLevel(level: number) {
-  return level * 200
-}
-
 export function getProfileGoals(profile: UserProfile): Goal[] {
   return profile.goals && profile.goals.length > 0 ? profile.goals : [profile.goal]
 }
@@ -438,7 +437,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       syncProgressFromSupabase(uid)
     })
 
-    // Also listen for future sign-in events
+    // Also listen for future sign-in / sign-out events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const uid = session.user.id
@@ -446,6 +445,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (cloudData?.profile) setProfile(cloudData.profile)
         if (cloudData?.stats) setStats(cloudData.stats)
         syncProgressFromSupabase(uid)
+      }
+      if (event === 'SIGNED_OUT') {
+        // Clear local state so the next user starts clean
+        setProfile(getFreshDefaultProfile())
+        setStats({ ...NEW_ACCOUNT_STATS })
       }
     })
 
@@ -481,7 +485,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setStats(prev => {
       const safeAmount = Math.max(0, amount)
       const newXP = prev.xp + safeAmount
-      const newLevel = Math.floor(newXP / xpForLevel(1)) + 1
+      const newLevel = getLevelFromXp(newXP)
       const next: UserStats = { ...prev, xp: newXP, level: Math.max(prev.level, newLevel), totalWorkouts: prev.totalWorkouts }
       getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
       return next
@@ -496,15 +500,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
     })
   }, [setStats])
 
+  // resetUserData: clears LOCAL state only — does NOT write to Supabase.
+  // Calling this before signOut is safe; the cloud data stays intact so the
+  // user gets their progress back when they sign in again.
   const resetUserData = useCallback(() => {
     setProfile(getFreshDefaultProfile())
     setStats({ ...NEW_ACCOUNT_STATS })
-    getCurrentUserId().then(uid => {
-      if (uid) {
-        saveProfileToSupabase(uid, getFreshDefaultProfile())
-        saveStatsToSupabase(uid, { ...NEW_ACCOUNT_STATS })
-      }
-    })
   }, [setProfile, setStats])
 
   const completeOnboarding = useCallback((profileData: Partial<UserProfile>) => {
