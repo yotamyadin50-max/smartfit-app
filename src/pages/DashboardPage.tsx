@@ -6,6 +6,8 @@ import { useI18n } from '../context/I18nContext'
 import { todayWorkout } from '../data/mockWorkouts'
 import { getWorkoutProgress } from '../progressStorage'
 import BottomNav from '../components/layout/BottomNav'
+import AnimalRankCard from '../components/AnimalRankCard'
+import { getAnimalProgress } from '../lib/animalRanks'
 
 function getGreeting(isHebrew: boolean) {
   const h = new Date().getHours()
@@ -25,27 +27,31 @@ export default function DashboardPage() {
 
   const displayName = user?.email?.split('@')[0] ?? (isHebrew ? 'ספורטאי' : 'Athlete')
   const workoutName = isHebrew ? todayWorkout.nameHe : todayWorkout.name
+  const animalProgress = getAnimalProgress(stats)
 
   // XP progress to next level
-  const xpForThisLevel = Math.max(stats.level * 200, 200)
-  const xpIntoLevel = stats.xp % xpForThisLevel
-  const xpPct = Math.min(xpIntoLevel / xpForThisLevel, 1)
-  const xpLeft = xpForThisLevel - xpIntoLevel
+  const xpPct = animalProgress.levelProgressPct
+  const xpLeft = animalProgress.xpToNextLevel
 
-  // Last 7 days — which had a completed workout?
+  // Current week Sun→Sat — which days had a completed workout?
   const last7 = useMemo(() => {
     const workouts = getWorkoutProgress()
-    // Build a Set of date-strings like "2026-05-12"
     const doneSet = new Set(
       workouts.filter(w => w.completed).map(w => w.date.slice(0, 10))
     )
     const today = new Date()
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today)
-      d.setDate(today.getDate() - (6 - i))          // oldest → newest
+    const todayDayIndex = today.getDay()           // 0=Sun … 6=Sat
+    // Sunday of the current week
+    const sunday = new Date(today)
+    sunday.setDate(today.getDate() - todayDayIndex)
+
+    return Array.from({ length: 7 }, (_, i) => {  // i=0→Sun, i=6→Sat
+      const d = new Date(sunday)
+      d.setDate(sunday.getDate() + i)
       const key = d.toISOString().slice(0, 10)
-      const isToday = i === 6
-      return { dayIndex: d.getDay(), done: doneSet.has(key), isToday }
+      const isToday = i === todayDayIndex
+      const isFuture = i > todayDayIndex
+      return { dayIndex: i, done: doneSet.has(key), isToday, isFuture }
     })
   }, [])
 
@@ -68,6 +74,13 @@ export default function DashboardPage() {
           </button>
         </header>
 
+        <AnimalRankCard
+          isHebrew={isHebrew}
+          showCelebration
+          stats={stats}
+          userName={displayName}
+        />
+
         {/* ── Stat tiles row ── */}
         <div className="dash-stat-row">
           <div className="dash-stat-tile dash-stat-tile-fire">
@@ -77,7 +90,7 @@ export default function DashboardPage() {
           </div>
           <div className="dash-stat-tile dash-stat-tile-star">
             <span className="dash-stat-tile-icon">⭐</span>
-            <span className="dash-stat-tile-value">{isHebrew ? `רמה ${stats.level}` : `Lv ${stats.level}`}</span>
+            <span className="dash-stat-tile-value">{isHebrew ? `רמה ${animalProgress.level}` : `Lv ${animalProgress.level}`}</span>
             <span className="dash-stat-tile-label">{stats.xp} XP</span>
           </div>
         </div>
@@ -89,13 +102,14 @@ export default function DashboardPage() {
               <div
                 className={[
                   'dash-streak-dot',
-                  day.done ? 'done' : '',
-                  day.isToday ? 'today' : '',
+                  day.done    ? 'done'   : '',
+                  day.isToday ? 'today'  : '',
+                  day.isFuture && !day.done ? 'future' : '',
                 ].filter(Boolean).join(' ')}
               >
                 {day.done ? '✓' : day.isToday ? '●' : ''}
               </div>
-              <span className="dash-streak-day-label">
+              <span className={`dash-streak-day-label${day.isToday ? ' today' : ''}`}>
                 {isHebrew ? DAY_LABELS_HE[day.dayIndex] : DAY_LABELS_EN[day.dayIndex]}
               </span>
             </div>
@@ -106,12 +120,12 @@ export default function DashboardPage() {
         <div className="dash-xp-wrap">
           <div className="dash-xp-labels">
             <span className="dash-xp-label-left">
-              {isHebrew ? `רמה ${stats.level}` : `Level ${stats.level}`}
+              {isHebrew ? `רמה ${animalProgress.level}` : `Level ${animalProgress.level}`}
             </span>
             <span className="dash-xp-label-right">
               {isHebrew
-                ? `עוד ${xpLeft} XP לרמה ${stats.level + 1}`
-                : `${xpLeft} XP to Level ${stats.level + 1}`}
+                ? `עוד ${xpLeft} XP לרמה ${animalProgress.level + 1}`
+                : `${xpLeft} XP to Level ${animalProgress.level + 1}`}
             </span>
           </div>
           <div className="dash-xp-track">

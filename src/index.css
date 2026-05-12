@@ -461,7 +461,12 @@ button { color: inherit; }
   border-color: var(--accent-yellow); color: var(--accent-yellow);
   background: rgba(245,158,11,0.10);
 }
+.dash-streak-dot.future {
+  opacity: 0.35;
+  border-style: dashed;
+}
 .dash-streak-day-label { font-size: 10px; color: var(--text-secondary); font-weight: 600; }
+.dash-streak-day-label.today { color: var(--accent-yellow); font-weight: 700; }
 
 .dash-today-card {
   background: linear-gradient(135deg, var(--bg-card) 0%, rgba(59,130,246,0.08) 100%);
