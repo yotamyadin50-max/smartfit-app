@@ -127,7 +127,9 @@ if (chatRoot) {
     if (!prompt) return formatReply(handleFallback({ userMessage: 'שאלה כללית על כושר ותזונה' }))
 
     const reply = await getHybridAiReply({ prompt, userMessage: prompt })
-    return formatReply(reply)
+    const replyText = formatReply(reply).trim()
+    console.log('AI reply text:', replyText)
+    return replyText || formatReply(handleFallback({ userMessage: prompt }))
   }
 
   const sendMessage = async message => {

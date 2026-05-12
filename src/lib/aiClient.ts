@@ -223,6 +223,122 @@ function getAbortErrorMessage(error: unknown) {
   return ''
 }
 
+type AiRequestError = Error & {
+  endpoint?: string
+  model?: string
+  responseBody?: string
+  skipRetry?: boolean
+  status?: number
+  statusText?: string
+}
+
+function parseAiResponseBody(responseBody: string) {
+  try {
+    const parsed = JSON.parse(responseBody)
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function extractTextFromContentParts(content: unknown) {
+  if (typeof content === 'string') return content.trim()
+  if (!Array.isArray(content)) return ''
+
+  return content
+    .map(part => {
+      if (typeof part === 'string') return part
+      if (
+        typeof part === 'object' &&
+        part !== null &&
+        'text' in part &&
+        typeof (part as { text?: unknown }).text === 'string'
+      ) {
+        return (part as { text: string }).text
+      }
+      return ''
+    })
+    .join('')
+    .trim()
+}
+
+function extractTextFromChoices(data: Record<string, unknown>) {
+  if (!Array.isArray(data.choices)) return ''
+  const firstChoice = data.choices[0]
+  if (typeof firstChoice !== 'object' || firstChoice === null) return ''
+
+  const choice = firstChoice as Record<string, unknown>
+  if (typeof choice.text === 'string' && choice.text.trim()) {
+    return choice.text.trim()
+  }
+
+  if (typeof choice.message === 'object' && choice.message !== null) {
+    const message = choice.message as Record<string, unknown>
+    return extractTextFromContentParts(message.content)
+  }
+
+  return ''
+}
+
+function extractAiReplyText(data: Record<string, unknown>, responseBody: string) {
+  if (typeof data.text === 'string' && data.text.trim()) return data.text.trim()
+  if (typeof data.message === 'string' && data.message.trim()) return data.message.trim()
+
+  const choiceText = extractTextFromChoices(data)
+  if (choiceText) return choiceText
+
+  const rawText = responseBody.trim()
+  if (rawText && Object.keys(data).length === 0) return rawText
+  return ''
+}
+
+function createAiRequestError(message: string, details: Partial<AiRequestError> = {}) {
+  const error = new Error(message) as AiRequestError
+  Object.assign(error, details)
+  return error
+}
+
+function getErrorField(error: unknown, field: keyof AiRequestError) {
+  if (typeof error !== 'object' || error === null || !(field in error)) return undefined
+  return (error as AiRequestError)[field]
+}
+
+function logAiRequestFailure({
+  abortReason,
+  attempt,
+  error,
+}: {
+  abortReason: string
+  attempt: number
+  error: unknown
+}) {
+  const status = getErrorField(error, 'status')
+  const statusText = getErrorField(error, 'statusText')
+  const responseBody = getErrorField(error, 'responseBody')
+  const model = getErrorField(error, 'model')
+  const aborted = isAbortError(error)
+  const timeout = aborted && abortReason === 'timeout'
+  const name = error instanceof Error
+    ? error.name
+    : typeof error === 'object' && error !== null && 'name' in error
+      ? String((error as { name?: unknown }).name)
+      : undefined
+  const message = getAbortErrorMessage(error) || (typeof error === 'string' ? error : undefined)
+
+  console.error('SmartFit AI request failed', {
+    aborted,
+    attempt,
+    endpoint: getErrorField(error, 'endpoint') ?? AI_ENDPOINT,
+    message,
+    model,
+    name,
+    responseBody,
+    status,
+    statusText,
+    timeout,
+  })
+}
+
 export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<SmartFitAiReply> {
   const cleanPrompt = sanitizePrompt(prompt)
   if (!cleanPrompt) throw new Error('empty-prompt')
@@ -240,28 +356,42 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
         body: JSON.stringify({ prompt: cleanPrompt }),
         signal: controller.signal,
       })
-      const data = await response.json().catch(() => ({}))
+      const responseBody = await response.text()
+      const data = parseAiResponseBody(responseBody)
+      const model = typeof data.model === 'string' ? data.model : undefined
+      const replyText = extractAiReplyText(data, responseBody)
 
       if (!response.ok) {
-        throw new Error(`api-status-${data.status || response.status}`)
+        throw createAiRequestError(`api-status-${response.status}`, {
+          endpoint: AI_ENDPOINT,
+          model,
+          responseBody,
+          status: response.status,
+          statusText: response.statusText,
+        })
       }
 
-      if (data?.model === 'local-mode') {
-        // Server has no API key or OpenRouter is unavailable — skip retry and go straight to client fallback
-        const err = new Error('server-local-mode')
-        ;(err as Error & { skipRetry: boolean }).skipRetry = true
-        throw err
-      }
-
-      if (typeof data?.text !== 'string' || !data.text.trim()) {
-        throw new Error('empty-ai-response')
+      if (!replyText) {
+        throw createAiRequestError('empty-ai-response', {
+          endpoint: AI_ENDPOINT,
+          model,
+          responseBody,
+          status: response.status,
+          statusText: response.statusText,
+        })
       }
 
       console.log('request completed', { attempt: attempt + 1, status: response.status })
+      console.log('AI reply text:', replyText)
+      const isLocalMode = data.mode === 'local' || data.model === 'local-mode'
       return {
-        mode: 'openrouter',
-        modeLabel: typeof data.modeLabel === 'string' ? data.modeLabel : undefined,
-        text: data.text.trim(),
+        mode: isLocalMode ? 'local' : 'openrouter',
+        modeLabel: typeof data.modeLabel === 'string'
+          ? data.modeLabel
+          : isLocalMode
+            ? getLocalModeLabel(getStoredLanguage())
+            : undefined,
+        text: replyText,
       }
     } catch (error) {
       lastError = error
@@ -269,19 +399,20 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
         getAbortReason(controller.signal) ||
         getAbortReason(signal) ||
         getAbortErrorMessage(error)
-
-      if (isAbortError(error)) {
-        console.log('request aborted', { attempt: attempt + 1, reason: abortReason || 'unknown' })
-      } else {
-        console.log('request failed', { attempt: attempt + 1 })
-      }
-
       const isUserCancellation =
         isAbortError(error) &&
         (abortReason === 'new-message' || abortReason === 'cancelled')
 
+      if (isAbortError(error)) {
+        console.log('request aborted', { attempt: attempt + 1, reason: abortReason || 'unknown' })
+      }
+
+      if (!isUserCancellation) {
+        logAiRequestFailure({ abortReason, attempt: attempt + 1, error })
+      }
+
       const isServerLocalMode =
-        error instanceof Error && (error as Error & { skipRetry?: boolean }).skipRetry === true
+        error instanceof Error && (error as AiRequestError).skipRetry === true
 
       if (isUserCancellation || isServerLocalMode || attempt >= MAX_AI_RETRIES) {
         throw error

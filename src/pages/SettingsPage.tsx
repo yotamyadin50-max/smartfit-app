@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useI18n, type Language } from '../context/I18nContext'
@@ -25,6 +25,13 @@ import {
 } from '../context/UserContext'
 import BottomNav from '../components/layout/BottomNav'
 import { removeJson } from '../lib/storage'
+import {
+  notificationsSupported,
+  requestPermission,
+  getPermissionState,
+  scheduleWorkoutReminder,
+  cancelWorkoutReminder,
+} from '../lib/notifications'
 
 const dayLabelKeys: Record<WeekDay, string> = {
   sun: 'sunday',
@@ -82,6 +89,33 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(profile.notificationsEnabled)
   const [reminderTime, setReminderTime] = useState(profile.reminderTime)
   const [saved, setSaved] = useState(false)
+  const [notifPermission, setNotifPermission] = useState(getPermissionState)
+
+  useEffect(() => {
+    if (notifications && notifPermission === 'granted') {
+      scheduleWorkoutReminder(
+        reminderTime,
+        language === 'he' ? 'זמן לאימון! 💪' : "Time to work out! 💪",
+        language === 'he' ? 'האימון שלך מחכה לך ב-SmartFit' : 'Your workout is waiting in SmartFit',
+      )
+    } else {
+      cancelWorkoutReminder()
+    }
+  }, [notifications, reminderTime, notifPermission, language])
+
+  async function handleToggleNotifications() {
+    if (!notifications) {
+      const granted = await requestPermission()
+      setNotifPermission(getPermissionState())
+      if (!granted) {
+        alert(language === 'he'
+          ? 'נא לאפשר התראות בהגדרות הדפדפן'
+          : 'Please allow notifications in your browser settings')
+        return
+      }
+    }
+    setNotifications(prev => !prev)
+  }
 
   const restDays = useMemo(
     () => WEEK_DAYS.filter(day => ensureRestDays(weeklyPlan)[day] === 'rest'),
@@ -308,7 +342,8 @@ export default function SettingsPage() {
             <span className="settings-label">{t('dailyReminder')}</span>
             <button
               className={`toggle-btn${notifications ? ' on' : ''}`}
-              onClick={() => setNotifications(isEnabled => !isEnabled)}
+              onClick={handleToggleNotifications}
+              disabled={!notificationsSupported()}
             >
               {notifications ? 'ON' : 'OFF'}
             </button>
@@ -328,6 +363,15 @@ export default function SettingsPage() {
 
         <button className="btn-primary" onClick={handleSave}>
           {saved ? `${t('saved')}!` : t('saveChanges')}
+        </button>
+
+        {/* Reminders link */}
+        <button
+          className="btn-secondary"
+          style={{ width: '100%', marginTop: 10 }}
+          onClick={() => navigate('/reminders')}
+        >
+          ⏰ {language === 'he' ? 'ניהול תזכורות אימון' : 'Manage Workout Reminders'}
         </button>
 
         <div className="account-actions">

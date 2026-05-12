@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { lazy, Suspense, type ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { lazy, Suspense, type ReactNode, useEffect } from 'react'
 import { useAuth } from './context/AuthContext'
 import { useUser } from './context/UserContext'
 import { useI18n } from './context/I18nContext'
+import { savePendingInvite, acceptInvite, getPendingInvite, clearPendingInvite } from './lib/friendsService'
 
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -14,6 +15,11 @@ import WorkoutSummaryPage from './pages/WorkoutSummaryPage'
 import NutritionPage from './pages/NutritionPage'
 import SettingsPage from './pages/SettingsPage'
 import TrainingPlanPage from './pages/TrainingPlanPage'
+import BadgesPage from './pages/BadgesPage'
+import RecipesPage from './pages/RecipesPage'
+import SocialPage from './pages/SocialPage'
+import WearablePage from './pages/WearablePage'
+import RemindersPage from './pages/RemindersPage'
 import AnimatedWaveBackground from './components/AnimatedWaveBackground'
 
 const AIToolsPage = lazy(() => import('./pages/AIToolsPage'))
@@ -49,11 +55,45 @@ function OnboardingRoute({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+// Handles ?invite=<code> links
+function InviteHandler() {
+  const { user } = useAuth()
+  const { addXP } = useUser()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('invite')
+    if (code) {
+      savePendingInvite(code)
+      // Remove from URL without reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete('invite')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+    const pending = getPendingInvite()
+    if (!pending) return
+    clearPendingInvite()
+    acceptInvite(pending, user.id).then(result => {
+      if (result === 'ok') {
+        addXP(50) // +50 XP for new friend
+        console.log('[Friends] Friendship created +50 XP')
+      }
+    })
+  }, [user, addXP])
+
+  return null
+}
+
 export default function App() {
   const { t } = useI18n()
 
   return (
     <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <InviteHandler />
       <AnimatedWaveBackground />
       <Suspense fallback={<div className="spinner-screen">{t('loading')}</div>}>
         <Routes>
@@ -72,6 +112,11 @@ export default function App() {
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/badges" element={<ProtectedRoute><BadgesPage /></ProtectedRoute>} />
+          <Route path="/recipes" element={<ProtectedRoute><RecipesPage /></ProtectedRoute>} />
+          <Route path="/social" element={<ProtectedRoute><SocialPage /></ProtectedRoute>} />
+          <Route path="/reminders" element={<ProtectedRoute><RemindersPage /></ProtectedRoute>} />
+          <Route path="/wearable" element={<ProtectedRoute><WearablePage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

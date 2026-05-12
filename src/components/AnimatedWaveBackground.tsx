@@ -14,13 +14,16 @@ export default function AnimatedWaveBackground() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')!
+    const context = canvas.getContext('2d')
+    if (!context) return
+    const canvasElement: HTMLCanvasElement = canvas
+    const ctx: CanvasRenderingContext2D = context
 
     let W = 0, H = 0, t = 0, last = 0, rafId = 0
 
     function resize() {
-      W = canvas.width  = window.innerWidth
-      H = canvas.height = window.innerHeight
+      W = canvasElement.width  = window.innerWidth
+      H = canvasElement.height = window.innerHeight
     }
     window.addEventListener('resize', resize)
     resize()
