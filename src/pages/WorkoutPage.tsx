@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useI18n } from '../context/I18nContext'
-import { getAgeGuidance, getProfileGoals, getProfileWorkoutTypes, type Goal, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
+import { getAgeGuidance, getProfileGoals, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
 import {
   mockAerobicWorkouts,
   mockWorkouts,
@@ -15,6 +15,7 @@ import { getHeartRateSummary } from '../deviceConnections'
 import { estimateCardioCalories, formatPace, getCardioActivityType } from '../fitnessTracking'
 import { startLocationTracker, type LocationTrackerStatus } from '../locationTracker'
 import { getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
+import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, isHRConnected, maxHR, onHeartRate } from '../lib/heartRate'
 
 type Phase = 'select' | 'countdown' | 'active' | 'rest' | 'aerobic' | 'done'
 type WorkoutChoice = WorkoutCategory | 'aerobic'
@@ -106,6 +107,63 @@ const GYM_EXERCISES: GymExerciseTemplate[] = [
   { id: 'hanging-knee-raise', focus: 'abs', name: 'Hanging Knee Raise', nameHe: 'הרמת ברכיים בתלייה', equipment: 'Captain chair or pull-up station', equipmentHe: 'כיסא קפטן או מתקן מתח', instruction: 'Lift knees with control and stop if the lower back feels uncomfortable.', instructionHe: 'הרם ברכיים בשליטה ועצור אם הגב התחתון לא נוח.' },
   { id: 'torso-rotation', focus: 'abs', name: 'Torso Rotation Machine', nameHe: 'מכונת רוטציה לבטן', equipment: 'Torso rotation machine', equipmentHe: 'מכונת רוטציה', instruction: 'Use a light load and rotate through a controlled, pain-free range.', instructionHe: 'בחר משקל קל וסובב בטווח נשלט וללא כאב.' },
 ]
+
+// Wikipedia article name for each exercise (used to fetch a real machine photo)
+const WIKI_ARTICLE: Record<string, string> = {
+  'leg-press':             'Leg press',
+  'lat-pulldown':          'Lat pulldown',
+  'chest-press':           'Chest press',
+  'cable-row':             'Cable row',
+  'machine-shoulder-press':'Overhead press',
+  'incline-db-press':      'Bench press',
+  'cable-fly':             'Cable fly',
+  'pec-deck':              'Pec deck',
+  'single-arm-row':        'Bent-over row',
+  'chest-supported-row':   'Bent-over row',
+  'back-extension':        'Hyperextension (exercise)',
+  'leg-curl':              'Leg curl',
+  'leg-extension':         'Leg extension (exercise)',
+  'smith-squat':           'Smith machine',
+  'calf-raise':            'Calf raise',
+  'cable-lateral-raise':   'Shoulder lateral raise',
+  'face-pull':             'Face pull',
+  'rear-delt-machine':     'Rear delt fly',
+  'triceps-pushdown':      'Triceps extension',
+  'preacher-curl':         'Preacher curl',
+  'hammer-curl':           'Hammer curl',
+  'cable-crunch':          'Crunch (exercise)',
+  'hanging-knee-raise':    'Knee raise',
+  'torso-rotation':        'Torso rotation',
+}
+
+// Module-level image cache so each Wikipedia article is only fetched once per session
+const wikiImageCache = new Map<string, string | null>()
+
+function WikiImage({ exerciseId, alt }: { exerciseId: string; alt: string }) {
+  const article = WIKI_ARTICLE[exerciseId] ?? exerciseId.replace(/-/g, ' ')
+  const [src, setSrc] = useState<string | null>(() => wikiImageCache.get(article) ?? null)
+  const [status, setStatus] = useState<'loading' | 'done'>(() =>
+    wikiImageCache.has(article) ? 'done' : 'loading'
+  )
+
+  useEffect(() => {
+    if (wikiImageCache.has(article)) return
+    const slug = encodeURIComponent(article.replace(/ /g, '_'))
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`)
+      .then(r => r.json())
+      .then(data => {
+        const url: string | null = data.thumbnail?.source ?? null
+        wikiImageCache.set(article, url)
+        setSrc(url)
+      })
+      .catch(() => wikiImageCache.set(article, null))
+      .finally(() => setStatus('done'))
+  }, [article])
+
+  if (status === 'loading') return <div className="exercise-machine-img skeleton" />
+  if (!src) return <div className="exercise-machine-img fallback">🏋️</div>
+  return <img src={src} alt={alt} className="exercise-machine-img" />
+}
 
 const goalLabelKeys: Record<Goal, string> = {
   cut: 'toneUp',
@@ -570,6 +628,7 @@ function buildGymWorkout({
         name: template.name,
         nameHe: template.nameHe,
         reps: prescription.reps,
+        durationSeconds: prescription.reps * 4, // ~4 sec/rep on machines → triggers exercise countdown timer
         restSeconds: prescription.restSeconds,
         sets: prescription.sets,
         instruction: `${template.instruction} Equipment: ${template.equipment}.`,
@@ -872,12 +931,14 @@ function GymWorkoutBuilderPanel({
           </div>
           <ul className="exercise-list">
             {generatedWorkout.exercises.map((exercise, index) => (
-              <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item">
-                <span className="exercise-num">{index + 1}</span>
+              <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
+                <WikiImage exerciseId={exercise.id.replace(/^gym-/, '').replace(/-\d+$/, '')} alt={exercise.name} />
                 <div className="exercise-list-info">
                   <span className="exercise-list-name">{isHebrew ? exercise.nameHe : exercise.name}</span>
                   <span className="exercise-list-detail">
-                    {exercise.sets} {t('set')} x {exercise.reps} {t('reps')} - {exercise.restSeconds}s {t('rest')}
+                    {exercise.sets} {t('set')} × {exercise.reps} {t('reps')}
+                    {exercise.durationSeconds ? ` · ⏱ ${exercise.durationSeconds}s` : ''}
+                    {' · '}😴 {exercise.restSeconds}s {t('rest')}
                   </span>
                   <span className="exercise-list-note">
                     {isHebrew ? exercise.instructionHe : exercise.instruction}
@@ -938,6 +999,8 @@ function SelectWorkout({
 }) {
   const { t, isHebrew, language } = useI18n()
   const { profile } = useUser()
+  const navigate = useNavigate()
+  const todayGymDay = (profile.gymDays ?? []).includes(WEEK_DAYS[new Date().getDay()])
   const profileGoals = getProfileGoals(profile)
   const profileLocations = getProfileWorkoutTypes(profile)
   const ageGuidance = getAgeGuidance(profile)
@@ -957,6 +1020,32 @@ function SelectWorkout({
         <h1 className="workout-title">{t('chooseWorkout')}</h1>
         <p className="workout-picker-sub">{t('chooseWorkoutSub')}</p>
       </div>
+
+      <button
+        className="training-plan-banner"
+        onClick={() => navigate('/training-plan')}
+      >
+        <span className="training-plan-banner-icon">📋</span>
+        <div className="training-plan-banner-text">
+          <strong>{isHebrew ? 'מערכת אימונים' : 'Training System'}</strong>
+          <small>{isHebrew ? 'הצג וערוך את תוכנית השבוע שלך' : 'View & edit your weekly plan'}</small>
+        </div>
+        <span className="training-plan-banner-arrow">›</span>
+      </button>
+
+      {todayGymDay && generatedGymWorkout && (
+        <div className="gym-today-banner">
+          <span className="gym-today-icon">🏋️</span>
+          <div className="gym-today-text">
+            <strong>{isHebrew ? 'היום יום חדר כושר!' : "Today is your gym day!"}</strong>
+            <small>
+              {isHebrew
+                ? `${generatedGymWorkout.exercises.length} תרגילים · ${generatedGymWorkout.durationMinutes} דקות · טיימר + מנוחה`
+                : `${generatedGymWorkout.exercises.length} exercises · ${generatedGymWorkout.durationMinutes} min · timer + rest`}
+            </small>
+          </div>
+        </div>
+      )}
 
       <div className="workout-choice-grid">
         {(['goal', 'abs', 'arms', 'legs', 'gym', 'aerobic'] as WorkoutChoice[]).map(choice => (
@@ -1177,54 +1266,30 @@ function TimedExerciseTimer({
 }
 
 function AerobicTracker({ workout, onFinish }: { workout: AerobicWorkout; onFinish: (summary: CardioSummary) => void }) {
-  const { t, isHebrew, language } = useI18n()
+  const { isHebrew, language } = useI18n()
   const { profile } = useUser()
-  const ageGuidance = getAgeGuidance(profile)
-  const adjustedAerobic = getAgeAdjustedAerobic(workout, ageGuidance)
   const [elapsed, setElapsed] = useState(0)
   const [trackedDistanceKm, setTrackedDistanceKm] = useState(0)
-  const [manualDistanceKm, setManualDistanceKm] = useState('')
   const [locationStatus, setLocationStatus] = useState<LocationTrackerStatus>('idle')
   const finishedRef = useRef(false)
-  const durationSeconds = adjustedAerobic.durationMinutes * 60
-  const progress = Math.min(elapsed / durationSeconds, 1)
-  const manualDistanceValue = Number(manualDistanceKm)
-  const distanceKm = trackedDistanceKm > 0
-    ? trackedDistanceKm
-    : Number.isFinite(manualDistanceValue) && manualDistanceValue > 0
-      ? manualDistanceValue
-      : 0
+
   const activityType = getCardioActivityType(`${workout.name} ${workout.nameHe}`)
   const durationMinutes = elapsed / 60
-  const calories = estimateCardioCalories({
-    activityType,
-    distanceKm,
-    durationMinutes,
-    weightKg: profile.weightKg,
-  })
-  const pace = formatPace(durationMinutes, distanceKm, language)
-  const heartRate = getHeartRateSummary(language).text
-  const localizedLocationText = locationStatus === 'tracking'
-    ? language === 'he' ? 'מיקום פעיל — המרחק נמדד לפי שינויי מיקום.' : 'Location active — distance is measured from location changes.'
-    : locationStatus === 'requesting'
-      ? language === 'he' ? 'מבקש הרשאת מיקום...' : 'Requesting location permission...'
-      : language === 'he' ? 'אם אין הרשאת מיקום, אפשר להזין מרחק ידנית.' : 'If location is not allowed, you can enter distance manually.'
-  const manualDistanceLabel = language === 'he' ? 'מרחק ידני בק״מ' : 'Manual distance in km'
-  const manualDistancePlaceholder = language === 'he' ? 'לדוגמה 2.4' : 'Example 2.4'
-  const calorieEstimateNote = language === 'he' ? 'הקלוריות הן הערכה בלבד.' : 'Calories are an estimate only.'
+  const distanceKm = trackedDistanceKm
+  const calories = estimateCardioCalories({ activityType, distanceKm, durationMinutes, weightKg: profile.weightKg })
 
+  // Timer counts up freely — user stops when done
   useEffect(() => {
-    if (elapsed >= durationSeconds) return
-    const timer = window.setInterval(() => setElapsed(value => Math.min(value + 1, durationSeconds)), 1000)
+    const timer = window.setInterval(() => setElapsed(v => v + 1), 1000)
     return () => window.clearInterval(timer)
-  }, [durationSeconds, elapsed])
+  }, [])
 
+  // Auto-start GPS location tracking
   useEffect(() => {
     const tracker = startLocationTracker({
       onDistanceChange: setTrackedDistanceKm,
       onStatusChange: setLocationStatus,
     })
-
     return () => tracker.stop()
   }, [])
 
@@ -1239,52 +1304,40 @@ function AerobicTracker({ workout, onFinish }: { workout: AerobicWorkout; onFini
     })
   }, [calories, distanceKm, durationMinutes, onFinish, workout.id])
 
-  useEffect(() => {
-    if (elapsed >= durationSeconds) {
-      const timer = window.setTimeout(finish, 600)
-      return () => window.clearTimeout(timer)
-    }
-  }, [durationSeconds, elapsed, finish])
+  const locationIcon =
+    locationStatus === 'tracking' ? '📍' :
+    locationStatus === 'requesting' ? '⏳' : '📵'
+
+  const locationNote =
+    locationStatus === 'tracking'
+      ? isHebrew ? 'GPS פעיל' : 'GPS active'
+      : locationStatus === 'requesting'
+      ? isHebrew ? 'מבקש הרשאת מיקום...' : 'Requesting GPS...'
+      : isHebrew ? 'אין גישה למיקום' : 'No location access'
 
   return (
-    <div className="workout-active-layout">
-      <div className="workout-progress-bar-wrap">
-        <div className="workout-progress-bar-fill" style={{ width: `${progress * 100}%` }} />
+    <div className="workout-active-layout aerobic-simple">
+      <div className="aerobic-header">
+        <p className="workout-card-label">{isHebrew ? workout.nameHe : workout.name}</p>
+        <span className="aerobic-location-badge">{locationIcon} {locationNote}</span>
       </div>
 
-      <div className="aerobic-live-card">
-        <p className="workout-card-label">{t('aerobicWorkout')}</p>
-        <h1 className="workout-title">{isHebrew ? workout.nameHe : workout.name}</h1>
-        <p className="age-note compact">
-          <strong>{t('ageAdaptation')}: {t(ageGuidance.group)}</strong>
-          <span>{t('ageWorkoutNote')}</span>
-        </p>
-        <p className="exercise-focus-instruction">{localizedLocationText}</p>
-        {(locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'error' || trackedDistanceKm === 0) && (
-          <label className="form-group">
-            <span className="form-label">{manualDistanceLabel}</span>
-            <input
-              className="form-input"
-              inputMode="decimal"
-              min={0}
-              step="0.01"
-              type="number"
-              value={manualDistanceKm}
-              onChange={event => setManualDistanceKm(event.target.value)}
-              placeholder={manualDistancePlaceholder}
-            />
-          </label>
-        )}
-        <div className="aerobic-timer">{formatTime(elapsed)}</div>
-        <div className="aerobic-stat-grid">
-          <div><span>{t('distance')}</span><strong>{distanceKm.toFixed(2)} {t('km')}</strong></div>
-          <div><span>{t('pace')}</span><strong>{pace}</strong></div>
-          <div><span>{t('calories')}</span><strong>{calories} {t('kcal')}</strong></div>
-          <div><span>{t('heartRate')}</span><strong>{heartRate}</strong></div>
+      <div className="aerobic-big-timer">{formatTime(elapsed)}</div>
+
+      <div className="aerobic-stats-row">
+        <div className="aerobic-stat-box">
+          <span>{isHebrew ? 'מרחק' : 'Distance'}</span>
+          <strong>{distanceKm.toFixed(2)} {isHebrew ? 'ק״מ' : 'km'}</strong>
         </div>
-        <p className="exercise-focus-instruction">{calorieEstimateNote}</p>
-        <button className="btn-primary" onClick={finish}>{t('finishAerobic')}</button>
+        <div className="aerobic-stat-box">
+          <span>{isHebrew ? 'קלוריות' : 'Calories'}</span>
+          <strong>{calories} kcal</strong>
+        </div>
       </div>
+
+      <button className="btn-primary aerobic-finish-btn" onClick={finish}>
+        {isHebrew ? '✓ סיימתי' : '✓ Finish'}
+      </button>
     </div>
   )
 }
@@ -1309,6 +1362,32 @@ export default function WorkoutPage() {
   const [showSkip, setShowSkip] = useState(false)
   const [lastFeedback, setLastFeedback] = useState<string | null>(null)
   const gymProgress = useMemo(() => analyzeGymProgress(getWorkoutProgress(), profile), [profile])
+
+  // Live heart rate from BLE wearable
+  const [liveHR, setLiveHR] = useState<number>(() => getCurrentHR())
+  useEffect(() => {
+    if (!isHRConnected()) return
+    const unsub = onHeartRate(bpm => setLiveHR(bpm))
+    return unsub
+  }, [])
+
+  // Auto-generate gym workout when today is a scheduled gym day
+  useEffect(() => {
+    const todayIndex = new Date().getDay() // 0=Sun … 6=Sat
+    const todayKey = WEEK_DAYS[todayIndex]
+    if ((profile.gymDays ?? []).includes(todayKey)) {
+      const auto = buildGymWorkout({
+        duration: gymDuration,
+        focuses: gymFocuses,
+        goal: gymGoal,
+        profile,
+        progress: getWorkoutProgress(),
+      })
+      setGeneratedGymWorkout(auto)
+      setSelectedWorkout(auto)
+      setSelectedChoice('gym')
+    }
+  }, []) // intentionally run only on mount
 
   const exercises = useMemo(
     () => selectedChoice === 'gym'
@@ -1451,6 +1530,11 @@ export default function WorkoutPage() {
     window.setTimeout(() => goToNext(), 800)
   }
 
+  // For exercises without a timer — just go straight to rest
+  const handleSetFinished = () => {
+    goToNext()
+  }
+
   const handleSkipConfirm = () => {
     setShowSkip(false)
     if (exIndex + 1 < total) {
@@ -1509,10 +1593,30 @@ export default function WorkoutPage() {
 
   if (!currentEx) return null
 
+  const hrZone = liveHR > 0 ? getHRZone(liveHR, profile.age) : 'rest'
+  const hrZoneColor = HR_ZONE_COLOR[hrZone]
+  const hrZoneLabel = isHebrew ? HR_ZONE_LABEL[hrZone].he : HR_ZONE_LABEL[hrZone].en
+
   return (
     <div className="workout-active-layout">
       {showSkip && (
         <SkipConfirm onConfirm={handleSkipConfirm} onCancel={() => setShowSkip(false)} />
+      )}
+
+      {liveHR > 0 && (
+        <div className="hr-workout-badge" style={{ borderColor: hrZoneColor, color: hrZoneColor }}>
+          <span className="hr-workout-icon">❤️</span>
+          <span className="hr-workout-bpm">{liveHR}</span>
+          <span className="hr-workout-zone">{hrZoneLabel}</span>
+        </div>
+      )}
+
+      {(hrZone === 'peak' || hrZone === 'max') && liveHR > 0 && (
+        <div className={`hr-warning-banner hr-warning-${hrZone}`}>
+          {hrZone === 'max'
+            ? (isHebrew ? '⚠️ דופק גבוה מאוד! שקול להאט או לעצור' : '⚠️ Very high heart rate! Consider slowing down')
+            : (isHebrew ? '🔥 דופק גבוה — אתה בזון שיא' : '🔥 High heart rate — you\'re in peak zone')}
+        </div>
       )}
 
       <div className="workout-progress-bar-wrap">
@@ -1525,10 +1629,20 @@ export default function WorkoutPage() {
       <p className="exercise-counter">{t('exercise')} {exIndex + 1} {t('of')} {total}</p>
 
       <div className="exercise-focus-card">
-        <div className="exercise-image-placeholder">{t(categoryLabelKeys[selectedChoice])}</div>
+        {selectedChoice === 'gym'
+          ? <WikiImage
+              exerciseId={currentEx.id.replace(/^gym-/, '').replace(/-\d+$/, '')}
+              alt={currentEx.name}
+            />
+          : <div className="exercise-image-placeholder">{t(categoryLabelKeys[selectedChoice])}</div>
+        }
         <h2 className="exercise-focus-name">{isHebrew ? currentEx.nameHe : currentEx.name}</h2>
         <p className="exercise-focus-sets">
-          {t('set')} {setIndex + 1} {t('of')} {currentEx.sets} - {currentEx.durationSeconds ? `${currentEx.durationSeconds} ${t('seconds')}` : `${currentEx.reps} ${t('reps')}`}
+          {t('set')} {setIndex + 1} {t('of')} {currentEx.sets}
+          {' — '}
+          {currentEx.reps} {t('reps')}
+          {currentEx.durationSeconds ? ` · ⏱ ${currentEx.durationSeconds}s` : ''}
+          {' · 😴 '}{currentEx.restSeconds}s
         </p>
         <p className="age-note compact">
           <strong>{t('ageAdaptation')}: {t(ageGuidance.group)}</strong>
@@ -1550,15 +1664,10 @@ export default function WorkoutPage() {
           onComplete={() => handleSetDone(t('good'))}
         />
       ) : (
-        <div className="set-feedback-buttons">
-          <p className="set-feedback-label">{t('howFeel')}</p>
-          <div className="set-feedback-row">
-            {[t('easy'), t('good'), t('hard')].map(feedback => (
-              <button key={feedback} className="feedback-btn" onClick={() => handleSetDone(feedback)}>
-                {feedback}
-              </button>
-            ))}
-          </div>
+        <div className="set-done-wrap">
+          <button className="btn-set-done" onClick={handleSetFinished}>
+            {isHebrew ? '✓ סיימתי' : '✓ Done'}
+          </button>
         </div>
       )}
 
