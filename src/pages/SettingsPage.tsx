@@ -1,3 +1,4 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -23,7 +24,7 @@ import {
   type WeeklyPlan,
   type WorkoutType,
 } from '../context/UserContext'
-import BottomNav from '../components/layout/BottomNav'
+
 import { removeJson } from '../lib/storage'
 import {
   notificationsSupported,
@@ -196,8 +197,8 @@ export default function SettingsPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <h1 className="page-title">{t('settings')}</h1>
+      <PageHeader title={t('settings')} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         <div className="settings-section">
           <h3 className="settings-section-title">{t('profile')}</h3>
@@ -383,7 +384,6 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
-      <BottomNav />
     </div>
   )
 }

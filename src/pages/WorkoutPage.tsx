@@ -12,10 +12,10 @@ import {
   type WorkoutCategory,
 } from '../data/mockWorkouts'
 import { getHeartRateSummary } from '../deviceConnections'
-import { estimateCardioCalories, formatPace, getCardioActivityType } from '../fitnessTracking'
+import { estimateCardioCalories, getCardioActivityType } from '../fitnessTracking'
 import { startLocationTracker, type LocationTrackerStatus } from '../locationTracker'
 import { getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
-import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, isHRConnected, maxHR, onHeartRate } from '../lib/heartRate'
+import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, isHRConnected, onHeartRate } from '../lib/heartRate'
 
 type Phase = 'select' | 'countdown' | 'active' | 'rest' | 'aerobic' | 'done'
 type WorkoutChoice = WorkoutCategory | 'aerobic'
@@ -1266,7 +1266,7 @@ function TimedExerciseTimer({
 }
 
 function AerobicTracker({ workout, onFinish }: { workout: AerobicWorkout; onFinish: (summary: CardioSummary) => void }) {
-  const { isHebrew, language } = useI18n()
+  const { isHebrew } = useI18n()
   const { profile } = useUser()
   const [elapsed, setElapsed] = useState(0)
   const [trackedDistanceKm, setTrackedDistanceKm] = useState(0)

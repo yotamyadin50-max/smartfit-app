@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import PageHeader from '../components/layout/PageHeader'
+import { useState } from 'react'
 import { useI18n } from '../context/I18nContext'
-import BottomNav from '../components/layout/BottomNav'
+
 import {
   getReminders, saveReminder, deleteReminder, toggleReminder,
   createReminder, formatReminderDays, requestNotificationPermission,
@@ -11,7 +11,6 @@ import {
 
 export default function RemindersPage() {
   const { isHebrew } = useI18n()
-  const navigate = useNavigate()
 
   const [reminders, setReminders] = useState<Reminder[]>(() => getReminders())
   const [showForm, setShowForm] = useState(false)
@@ -79,15 +78,8 @@ export default function RemindersPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button className="btn-secondary" style={{ padding: '6px 14px' }} onClick={() => navigate(-1)}>
-            ← {t('Back', 'חזור')}
-          </button>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
-            ⏰ {t('Reminders', 'תזכורות')}
-          </h1>
-        </div>
+      <PageHeader title={`⏰ ${t('Reminders', 'תזכורות')}`} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         {/* Permission banner */}
         {!notifGranted && (
@@ -274,7 +266,6 @@ export default function RemindersPage() {
         )}
 
       </div>
-      <BottomNav />
     </div>
   )
 }

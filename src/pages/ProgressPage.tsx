@@ -1,5 +1,7 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useState } from 'react'
 import { useI18n } from '../context/I18nContext'
+import { useUser } from '../context/UserContext'
 import {
   mockWorkoutHistory,
   mockAchievements,
@@ -7,7 +9,8 @@ import {
   mockMonthlySummary,
   mockAIProgressInsight,
 } from '../data/mockProgress'
-import BottomNav from '../components/layout/BottomNav'
+
+import AnimalRankCard from '../components/AnimalRankCard'
 import { getProgressData, type WorkoutProgressEntry } from '../progressStorage'
 
 function getStartOfWeek(date: Date) {
@@ -99,6 +102,8 @@ function MeasurementsSection() {
 
 export default function ProgressPage() {
   const { t, language } = useI18n()
+  const { stats } = useUser()
+  const isHebrew = language === 'he'
   const [activeSection, setActiveSection] = useState<'overview' | 'history' | 'achievements'>('overview')
   const [progressData] = useState(() => getProgressData())
   const progressEntries = [...progressData.workouts, ...progressData.cardio]
@@ -119,8 +124,15 @@ export default function ProgressPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <h1 className="page-title">{t('progressTitle')}</h1>
+      <PageHeader title={t('progressTitle')} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
+
+        <AnimalRankCard
+          className="animal-rank-card-progress"
+          isHebrew={isHebrew}
+          showCelebration
+          stats={stats}
+        />
 
         <div className="insight-card">
           <div className="insight-tag">{t('aiInsightDemo')}</div>
@@ -211,7 +223,6 @@ export default function ProgressPage() {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   )
 }

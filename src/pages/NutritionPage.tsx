@@ -1,8 +1,9 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useState } from 'react'
 import { useI18n } from '../context/I18nContext'
 import { getAgeGuidance, useUser } from '../context/UserContext'
 import { mockMeals, MealOption, MealCategory, Macros } from '../data/mockNutrition'
-import BottomNav from '../components/layout/BottomNav'
+
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import {
   generateWeeklyNutritionPlan,
@@ -299,8 +300,8 @@ export default function NutritionPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <h1 className="page-title">{t('nutritionTitle')}</h1>
+      <PageHeader title={t('nutritionTitle')} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         <div className="age-note">
           <strong>{t('ageAdaptation')}: {t(ageGuidance.group)}</strong>
@@ -338,7 +339,6 @@ export default function NutritionPage() {
         <MealCreator portionMultiplier={ageGuidance.nutritionMultiplier} />
         <WeeklyMealPlanSection />
       </div>
-      <BottomNav />
     </div>
   )
 }

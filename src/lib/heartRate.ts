@@ -13,6 +13,34 @@
 const HR_SERVICE     = 0x180D           // Heart Rate GATT service
 const HR_MEASUREMENT = 0x2A37           // Heart Rate Measurement characteristic
 
+type BluetoothRemoteGATTCharacteristic = EventTarget & {
+  value?: DataView
+  startNotifications: () => Promise<BluetoothRemoteGATTCharacteristic>
+  stopNotifications: () => Promise<BluetoothRemoteGATTCharacteristic>
+}
+
+type BluetoothRemoteGATTServer = {
+  connected: boolean
+  connect: () => Promise<BluetoothRemoteGATTServer>
+  disconnect: () => void
+  getPrimaryService: (service: number) => Promise<{
+    getCharacteristic: (characteristic: number) => Promise<BluetoothRemoteGATTCharacteristic>
+  }>
+}
+
+type BluetoothDevice = EventTarget & {
+  gatt?: BluetoothRemoteGATTServer
+  name?: string
+}
+
+type Bluetooth = {
+  requestDevice: (options: {
+    acceptAllDevices?: boolean
+    filters?: { services: number[] }[]
+    optionalServices?: number[]
+  }) => Promise<BluetoothDevice>
+}
+
 // ── Subscriber list ─────────────────────────────────────────────────────────
 
 type HRListener = (bpm: number) => void
@@ -95,7 +123,7 @@ export async function connectBLEHeartRate(mode: 'hr' | 'any' = 'hr'): Promise<{ 
   const service = await server.getPrimaryService(HR_SERVICE)
   _char = await service.getCharacteristic(HR_MEASUREMENT)
 
-  _char.addEventListener('characteristicvaluechanged', (event) => {
+  _char.addEventListener('characteristicvaluechanged', (event: Event) => {
     const val = (event.target as BluetoothRemoteGATTCharacteristic).value!
     // Byte 0 is flags: bit 0 = 0 → 8-bit BPM, bit 0 = 1 → 16-bit BPM
     const flags = val.getUint8(0)

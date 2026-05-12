@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext'
 export default function SignupForm() {
   const { signUp } = useAuth()
   const { resetUserData } = useUser()
-  const { t } = useI18n()
+  const { t, isHebrew } = useI18n()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -37,13 +37,13 @@ export default function SignupForm() {
     setError(null)
 
     if (password.length < 8) {
-      setError(t('isHebrew') === 'true'
+      setError(isHebrew
         ? 'הסיסמה חייבת להכיל לפחות 8 תווים'
         : 'Password must be at least 8 characters')
       return
     }
     if (!/[0-9]/.test(password) && !/[^a-zA-Z0-9]/.test(password)) {
-      setError(t('isHebrew') === 'true'
+      setError(isHebrew
         ? 'הסיסמה חייבת להכיל לפחות ספרה אחת או תו מיוחד'
         : 'Password must contain at least one number or special character')
       return
@@ -112,7 +112,7 @@ export default function SignupForm() {
               ))}
             </div>
             <span className="password-strength-label" style={{ color: strengthColor[passwordStrength] }}>
-              {strengthLabelEn[passwordStrength]}
+              {isHebrew ? strengthLabel[passwordStrength] : strengthLabelEn[passwordStrength]}
             </span>
           </div>
         )}

@@ -1,8 +1,9 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useUser } from '../context/UserContext'
 import { useI18n } from '../context/I18nContext'
-import BottomNav from '../components/layout/BottomNav'
+
 import {
   createInviteLink,
   loadFriends,
@@ -13,12 +14,13 @@ import {
   type Friend,
   type FriendNotification,
 } from '../lib/friendsService'
+import { getAnimalName, getAnimalProgress, getAnimalRankForLevel } from '../lib/animalRanks'
 
 type Tab = 'friends' | 'notifications'
 
 export default function SocialPage() {
   const { user } = useAuth()
-  const { profile, stats, addXP } = useUser()
+  const { profile, stats } = useUser()
   const { isHebrew } = useI18n()
 
   const [tab, setTab] = useState<Tab>('friends')
@@ -29,10 +31,33 @@ export default function SocialPage() {
   const [loadingLink, setLoadingLink] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [shareTarget, setShareTarget] = useState<Friend | null>(null)
-  const [shareType, setShareType] = useState<'achievement' | 'workout' | null>(null)
   const [shareSuccess, setShareSuccess] = useState(false)
 
   const t = (en: string, he: string) => isHebrew ? he : en
+  const myAnimalProgress = getAnimalProgress(stats)
+  const streakType = t('Workout streak', 'רצף אימונים')
+  const leaderboardRows = [
+    {
+      animal: myAnimalProgress.current,
+      friend: null,
+      id: 'me',
+      isMe: true,
+      level: myAnimalProgress.level,
+      name: profile.name || user?.email?.split('@')[0] || t('Me', 'אני'),
+      streak: stats.streak,
+      xp: stats.xp,
+    },
+    ...friends.map(friend => ({
+      animal: getAnimalRankForLevel(friend.level),
+      friend,
+      id: friend.id,
+      isMe: false,
+      level: friend.level,
+      name: friend.name,
+      streak: friend.streak,
+      xp: friend.xp,
+    })),
+  ].sort((a, b) => b.level - a.level || b.xp - a.xp || b.streak - a.streak)
 
   const unreadCount = notifications.length
 
@@ -88,7 +113,6 @@ export default function SocialPage() {
       data
     )
     setShareTarget(null)
-    setShareType(null)
     setShareSuccess(true)
     setTimeout(() => setShareSuccess(false), 2500)
   }
@@ -109,13 +133,11 @@ export default function SocialPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
+      <PageHeader title={`👥 ${t('Friends', 'חברים')}`} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
-            👥 {t('Friends', 'חברים')}
-          </h1>
+        {/* Tab buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => setTab('friends')}
@@ -204,69 +226,76 @@ export default function SocialPage() {
               </div>
             )}
 
-            {/* My stats mini card */}
-            <div style={{ ...card }}>
-              <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                {t('My profile', 'הפרופיל שלי')}
+            <div style={{ ...card, border: '1.5px solid rgba(34,197,94,0.22)' }}>
+              <p style={{ margin: '0 0 12px', fontWeight: 800, fontSize: 15 }}>
+                {t('Animal leaderboard', 'דירוג חיות')}
               </p>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <span style={{ fontSize: 36 }}>🐯</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontWeight: 800, fontSize: 16 }}>{profile.name || user?.email?.split('@')[0]}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-                    Lv.{stats.level} · {stats.streak}🔥 · {stats.xp} XP
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Friends list */}
-            {friends.length === 0 ? (
-              <div style={{ ...card, textAlign: 'center', padding: 32 }}>
-                <p style={{ fontSize: 40, margin: '0 0 10px' }}>👥</p>
-                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: 0 }}>
-                  {t('No friends yet. Send your invite link!', 'אין חברים עדיין. שלח את קישור ההזמנה!')}
-                </p>
-              </div>
-            ) : (
-              friends.map(friend => (
-                <div key={friend.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 38 }}>🐯</span>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 800, fontSize: 15 }}>{friend.name}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
-                      Lv.{friend.level} · {friend.streak}🔥 · {friend.xp} XP
-                    </p>
-                    {friend.badges.length > 0 && (
-                      <p style={{ margin: '4px 0 0', fontSize: 16 }}>
-                        {friend.badges.slice(0, 5).join(' ')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {leaderboardRows.map((row, index) => (
+                  <div
+                    key={`animal-rank-${row.id}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '10px 0',
+                      borderTop: index === 0 ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                    }}
+                  >
+                    <span style={{ width: 24, color: '#22c55e', fontWeight: 900, fontSize: 13 }}>
+                      #{index + 1}
+                    </span>
+                    <span style={{ fontSize: 36, lineHeight: 1 }} aria-label={getAnimalName(row.animal, isHebrew)}>
+                      {row.animal.imageUrl
+                        ? <img src={row.animal.imageUrl} alt={getAnimalName(row.animal, isHebrew)} style={{ width: 36, height: 36, borderRadius: 12, objectFit: 'cover' }} />
+                        : row.animal.emoji}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontWeight: 800, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.name}{row.isMe ? ` · ${t('You', 'אתה')}` : ''}
                       </p>
+                      <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                        {getAnimalName(row.animal, isHebrew)} · Lv.{row.level}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'center', minWidth: 70 }}>
+                      <strong style={{ display: 'block', fontSize: 16 }}>{row.streak}</strong>
+                      <span style={{ display: 'block', fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
+                        {streakType}
+                      </span>
+                    </div>
+                    {!row.isMe && row.friend && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <button
+                          onClick={() => setShareTarget(row.friend)}
+                          style={{
+                            padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                            background: 'rgba(34,197,94,0.2)', color: '#22c55e', fontSize: 11, fontWeight: 700,
+                          }}
+                        >
+                          {t('Share', 'שתף')}
+                        </button>
+                        <button
+                          onClick={() => handleRemove(row.friend)}
+                          disabled={removingId === row.friend.id}
+                          style={{
+                            padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                            background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 11, fontWeight: 700,
+                          }}
+                        >
+                          {removingId === row.friend.id ? '...' : t('Remove', 'הסר')}
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button
-                      onClick={() => { setShareTarget(friend); setShareType('achievement') }}
-                      style={{
-                        padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                        background: 'rgba(34,197,94,0.2)', color: '#22c55e', fontSize: 11, fontWeight: 700,
-                      }}
-                    >
-                      {t('Share', 'שתף')}
-                    </button>
-                    <button
-                      onClick={() => handleRemove(friend)}
-                      disabled={removingId === friend.id}
-                      style={{
-                        padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                        background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 11, fontWeight: 700,
-                      }}
-                    >
-                      {removingId === friend.id ? '...' : t('Remove', 'הסר')}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
+                ))}
+              </div>
+              {friends.length === 0 && (
+                <p style={{ margin: '12px 0 0', color: 'rgba(255,255,255,0.45)', fontSize: 12, textAlign: 'center' }}>
+                  {t('No friends yet. Your profile is ready for the animal ranking.', 'אין חברים עדיין. הפרופיל שלך כבר מופיע בדירוג החיות.')}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -344,7 +373,6 @@ export default function SocialPage() {
         )}
 
       </div>
-      <BottomNav />
     </div>
   )
 }

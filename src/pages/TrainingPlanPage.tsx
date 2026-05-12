@@ -1,5 +1,5 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../context/I18nContext'
 import {
   WEEK_DAYS,
@@ -15,7 +15,7 @@ import {
   type WorkoutType,
   useUser,
 } from '../context/UserContext'
-import BottomNav from '../components/layout/BottomNav'
+
 
 const MIN_REST_DAYS = 2
 const MAX_REST_DAYS = 3
@@ -103,8 +103,8 @@ function buildMockAiPlan(restDays: WeekDay[], goals: Goal[], fitnessLevel: Fitne
 
 export default function TrainingPlanPage() {
   const { profile, updateProfile } = useUser()
-  const { t } = useI18n()
-  const navigate = useNavigate()
+  const { t, language } = useI18n()
+  const isHebrew = language === 'he'
 
   const currentPlan = getProfileWeeklyPlan(profile)
   const goals = getProfileGoals(profile)
@@ -112,12 +112,16 @@ export default function TrainingPlanPage() {
   const ageGuidance = getAgeGuidance(profile)
   const hasGym = locations.includes('gym')
   const hasHome = locations.includes('home')
-  const isMultiLocation = hasGym && hasHome
 
   const [selectedRestDays, setSelectedRestDays] = useState<WeekDay[]>(getRestDays(currentPlan))
   const [draftPlan, setDraftPlan] = useState<WeeklyPlan>(currentPlan)
   const [gymDays, setGymDays] = useState<WeekDay[]>(profile.gymDays ?? [])
+  const [gymFrequency, setGymFrequency] = useState<number>(
+    (profile.gymDays ?? []).length > 0 ? (profile.gymDays ?? []).length : 3
+  )
   const [saved, setSaved] = useState(false)
+
+  const activeDaysCount = WEEK_DAYS.length - selectedRestDays.length
 
   const canGenerate = selectedRestDays.length >= MIN_REST_DAYS && selectedRestDays.length <= MAX_REST_DAYS
   const selectedRestLabel = useMemo(
@@ -128,17 +132,28 @@ export default function TrainingPlanPage() {
   const toggleRestDay = (day: WeekDay) => {
     setSaved(false)
     setSelectedRestDays(current => {
-      if (current.includes(day)) return current.filter(restDay => restDay !== day)
-      if (current.length >= MAX_REST_DAYS) return current
-      return [...current, day]
+      const next = current.includes(day)
+        ? current.filter(restDay => restDay !== day)
+        : current.length >= MAX_REST_DAYS ? current : [...current, day]
+      // remove from gymDays if now rest
+      if (!current.includes(day)) setGymDays(prev => prev.filter(d => d !== day))
+      return next
     })
   }
 
+  const handleGymFrequencyChange = (freq: number) => {
+    setGymFrequency(freq)
+    if (gymDays.length > freq) setGymDays(prev => prev.slice(0, freq))
+    setSaved(false)
+  }
+
   const toggleGymDay = (day: WeekDay) => {
-    if (selectedRestDays.includes(day)) return // can't be gym day if it's rest
-    setGymDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    )
+    if (selectedRestDays.includes(day)) return
+    setGymDays(prev => {
+      if (prev.includes(day)) return prev.filter(d => d !== day)
+      if (prev.length >= gymFrequency) return prev
+      return [...prev, day]
+    })
     setSaved(false)
   }
 
@@ -158,16 +173,8 @@ export default function TrainingPlanPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <header className="dashboard-header">
-          <div>
-            <p className="greeting-sub">{t('aiInsightDemo')}</p>
-            <h1 className="page-title training-plan-title">{t('trainingSystem')}</h1>
-          </div>
-          <button className="settings-icon-btn" onClick={() => navigate('/dashboard')}>
-            {t('back')}
-          </button>
-        </header>
+      <PageHeader title={t('trainingSystem')} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         <div className="training-system-card">
           <p className="workout-card-label">{t('mockAiPlanner')}</p>
@@ -203,57 +210,72 @@ export default function TrainingPlanPage() {
           </button>
         </div>
 
-        {/* Gym days selector — only for users who train at both gym and home */}
-        {isMultiLocation && (
+        {/* Gym schedule — shown for all users who train at a gym */}
+        {hasGym && (
           <div className="settings-section">
             <h3 className="settings-section-title">
-              🏋️ {t('language') === 'he' ? 'ימי חדר כושר' : 'Gym Days'}
+              🏋️ {isHebrew ? 'לוח זמנים לחדר כושר' : 'Gym Schedule'}
             </h3>
-            <p className="settings-helper">
-              {t('language') === 'he'
-                ? 'סמן אילו ימים אתה הולך לחדר כושר — שאר הימים יהיו אימון בית'
-                : 'Mark which days you go to the gym — the rest will be home workouts'}
+
+            {/* Step 1 — frequency */}
+            <p className="settings-label" style={{ marginBottom: 8 }}>
+              {isHebrew ? 'כמה פעמים בשבוע אתה הולך לחדר כושר?' : 'How many times per week do you go to the gym?'}
             </p>
-            <div className="rest-day-grid">
+            <div className="gym-freq-row">
+              {[2, 3, 4, 5, 6].filter(n => n <= activeDaysCount).map(n => (
+                <button
+                  key={n}
+                  className={`gym-freq-btn${gymFrequency === n ? ' selected' : ''}`}
+                  onClick={() => handleGymFrequencyChange(n)}
+                >
+                  {n}×
+                </button>
+              ))}
+            </div>
+            <p className="settings-helper" style={{ marginTop: 6 }}>
+              {isHebrew
+                ? `${gymFrequency} פעמים בשבוע · ${gymFrequency * 52} אימונים בשנה`
+                : `${gymFrequency}× per week · ~${gymFrequency * 52} sessions/year`}
+            </p>
+
+            {/* Step 2 — which days */}
+            <p className="settings-label" style={{ margin: '16px 0 8px' }}>
+              {isHebrew
+                ? `באילו ימים? (${gymDays.length}/${gymFrequency} נבחרו)`
+                : `Which days? (${gymDays.length}/${gymFrequency} selected)`}
+            </p>
+            <div className="gym-day-picker">
               {WEEK_DAYS.map(day => {
                 const isRest = selectedRestDays.includes(day)
                 const isGym = gymDays.includes(day)
+                const maxReached = gymDays.length >= gymFrequency && !isGym
                 return (
                   <button
                     key={day}
+                    className={`gym-day-chip${isGym ? ' gym' : ''}${isRest ? ' rest' : ''}${maxReached ? ' dim' : ''}`}
+                    disabled={isRest || maxReached}
                     onClick={() => toggleGymDay(day)}
-                    disabled={isRest}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 10,
-                      border: 'none',
-                      cursor: isRest ? 'default' : 'pointer',
-                      fontWeight: 700,
-                      fontSize: 12,
-                      background: isRest
-                        ? 'rgba(255,255,255,0.05)'
-                        : isGym
-                        ? '#22c55e'
-                        : 'rgba(255,255,255,0.1)',
-                      color: isRest ? 'rgba(255,255,255,0.25)' : isGym ? '#000' : '#fff',
-                    }}
                   >
-                    {t(dayLabelKeys[day])}
-                    {!isRest && (
-                      <span style={{ display: 'block', fontSize: 10, marginTop: 2 }}>
-                        {isGym ? '🏋️' : '🏠'}
-                      </span>
-                    )}
+                    <span className="gym-day-chip-name">{t(dayLabelKeys[day])}</span>
+                    <span className="gym-day-chip-icon">
+                      {isRest ? '😴' : isGym ? '🏋️' : hasHome ? '🏠' : '—'}
+                    </span>
                   </button>
                 )
               })}
             </div>
-            <p className="settings-helper">
-              🏋️ {gymDays.length} {t('language') === 'he' ? 'ימי חדר כושר' : 'gym days'} ·
-              🏠 {WEEK_DAYS.filter(d => !selectedRestDays.includes(d) && !gymDays.includes(d)).length} {t('language') === 'he' ? 'ימי בית' : 'home days'}
-            </p>
+
+            {/* Summary bar */}
+            <div className="gym-summary-bar">
+              <span>🏋️ {gymDays.length} {isHebrew ? 'חדר כושר' : 'gym'}</span>
+              {hasHome && (
+                <span>🏠 {WEEK_DAYS.filter(d => !selectedRestDays.includes(d) && !gymDays.includes(d)).length} {isHebrew ? 'בית' : 'home'}</span>
+              )}
+              <span>😴 {selectedRestDays.length} {isHebrew ? 'מנוחה' : 'rest'}</span>
+            </div>
+
             <button className="btn-primary" onClick={handleSaveGymDays}>
-              {saved ? '✅' : (t('language') === 'he' ? 'שמור ימי חדר כושר' : 'Save gym days')}
+              {saved ? `✅ ${isHebrew ? 'נשמר!' : 'Saved!'}` : isHebrew ? 'שמור לוח זמנים' : 'Save Schedule'}
             </button>
           </div>
         )}
@@ -261,29 +283,32 @@ export default function TrainingPlanPage() {
         <div className="settings-section">
           <h3 className="settings-section-title">{t('weeklyPlan')}</h3>
           <div className="plan-day-list">
-            {WEEK_DAYS.map(day => (
-              <div key={day} className={`plan-day-row ${draftPlan[day]}`}>
-                <div>
-                  <span className="plan-day-name">{t(dayLabelKeys[day])}</span>
-                  <span className="plan-day-desc">
-                    {draftPlan[day] === 'rest'
-                      ? t('recoveryDayDesc')
-                      : isMultiLocation
-                      ? gymDays.includes(day)
-                        ? '🏋️'
-                        : '🏠'
-                      : t('trainingDayDesc')}
+            {WEEK_DAYS.map(day => {
+              const isGymDay = hasGym && gymDays.includes(day)
+              const isHomeDay = hasHome && !gymDays.includes(day) && draftPlan[day] !== 'rest'
+              return (
+                <div key={day} className={`plan-day-row ${draftPlan[day]}`}>
+                  <div>
+                    <span className="plan-day-name">{t(dayLabelKeys[day])}</span>
+                    <span className="plan-day-desc">
+                      {draftPlan[day] === 'rest'
+                        ? t('recoveryDayDesc')
+                        : isGymDay
+                        ? isHebrew ? '🏋️ חדר כושר' : '🏋️ Gym'
+                        : isHomeDay
+                        ? isHebrew ? '🏠 בית' : '🏠 Home'
+                        : t('trainingDayDesc')}
+                    </span>
+                  </div>
+                  <span className={`focus-pill ${draftPlan[day]}`}>
+                    {t(focusLabelKeys[draftPlan[day]])}
                   </span>
                 </div>
-                <span className={`focus-pill ${draftPlan[day]}`}>
-                  {t(focusLabelKeys[draftPlan[day]])}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
-      <BottomNav />
     </div>
   )
 }

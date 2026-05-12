@@ -1,13 +1,12 @@
-import { useNavigate } from 'react-router-dom'
+import PageHeader from '../components/layout/PageHeader'
 import { useUser } from '../context/UserContext'
 import { useI18n } from '../context/I18nContext'
-import BottomNav from '../components/layout/BottomNav'
+
 import { ALL_BADGES, TIER_COLORS } from '../data/badges'
 
 export default function BadgesPage() {
   const { stats } = useUser()
   const { isHebrew } = useI18n()
-  const navigate = useNavigate()
 
   const earned = ALL_BADGES.filter(b => b.condition(stats))
   const locked = ALL_BADGES.filter(b => !b.condition(stats))
@@ -16,15 +15,8 @@ export default function BadgesPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button className="btn-secondary" style={{ padding: '6px 14px' }} onClick={() => navigate(-1)}>
-            ← {t('Back', 'חזור')}
-          </button>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-            {t('Badges & Achievements', 'תגים והישגים')}
-          </h1>
-        </div>
+      <PageHeader title={t('Badges & Achievements', 'תגים והישגים')} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         <div className="stats-row" style={{ marginBottom: 20 }}>
           <div className="stat-chip">
@@ -116,7 +108,6 @@ export default function BadgesPage() {
           </>
         )}
       </div>
-      <BottomNav />
     </div>
   )
 }

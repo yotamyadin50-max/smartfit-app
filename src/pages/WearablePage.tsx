@@ -1,8 +1,8 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useUser } from '../context/UserContext'
 import { useI18n } from '../context/I18nContext'
-import BottomNav from '../components/layout/BottomNav'
+
 import { readJson, writeJson } from '../lib/storage'
 import {
   connectBLEHeartRate,
@@ -53,7 +53,6 @@ function saveState(s: WearableState) { writeJson(WEARABLE_KEY, s) }
 export default function WearablePage() {
   const { profile, updateProfile } = useUser()
   const { isHebrew } = useI18n()
-  const navigate = useNavigate()
 
   const [wState, setWState] = useState<WearableState>(loadState)
   const [connecting, setConnecting] = useState(false)
@@ -139,15 +138,8 @@ export default function WearablePage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-
-        {/* Header */}
-        <div className="wear-header">
-          <button className="btn-secondary" style={{ padding: '6px 14px', width: 'auto' }} onClick={() => navigate(-1)}>
-            {isHebrew ? '→ חזור' : '← Back'}
-          </button>
-          <h1 className="wear-title">⌚ {T('Connected Devices', 'מכשירים מחוברים')}</h1>
-        </div>
+      <PageHeader title={`⌚ ${T('Connected Devices', 'מכשירים מחוברים')}`} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         {/* ── Platform banner ────────────────────────────────────────────── */}
         {platform.isIOS ? (
@@ -333,7 +325,6 @@ export default function WearablePage() {
         </div>
 
       </div>
-      <BottomNav />
     </div>
   )
 }

@@ -1,8 +1,8 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../context/I18nContext'
 import { useUser } from '../context/UserContext'
-import BottomNav from '../components/layout/BottomNav'
+
 import { RECIPES, CATEGORY_LABELS, type RecipeCategory, type Recipe } from '../data/recipes'
 
 const ALL_CATEGORIES: RecipeCategory[] = ['breakfast', 'lunch', 'dinner', 'snack', 'post-workout']
@@ -121,7 +121,6 @@ function RecipeModal({ recipe, isHebrew, onClose }: { recipe: Recipe; isHebrew: 
 export default function RecipesPage() {
   const { isHebrew } = useI18n()
   const { profile } = useUser()
-  const navigate = useNavigate()
   const [activeCategory, setActiveCategory] = useState<RecipeCategory | 'all'>('all')
   const [openRecipe, setOpenRecipe] = useState<Recipe | null>(null)
 
@@ -137,15 +136,8 @@ export default function RecipesPage() {
 
   return (
     <div className="app-layout">
-      <div className="page-content">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button className="btn-secondary" style={{ padding: '6px 14px' }} onClick={() => navigate(-1)}>
-            ← {t('Back', 'חזור')}
-          </button>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-            🍽 {t('Recipe Book', 'ספר מתכונים')}
-          </h1>
-        </div>
+      <PageHeader title={`🍽 ${t('Recipe Book', 'ספר מתכונים')}`} />
+      <div className="page-content" style={{ paddingTop: 0 }}>
 
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 16 }}>
           <button
@@ -202,7 +194,6 @@ export default function RecipesPage() {
         <RecipeModal recipe={openRecipe} isHebrew={isHebrew} onClose={() => setOpenRecipe(null)} />
       )}
 
-      <BottomNav />
     </div>
   )
 }

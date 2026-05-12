@@ -1,3 +1,4 @@
+import PageHeader from '../components/layout/PageHeader'
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { useI18n } from '../context/I18nContext'
 import { getAgeGuidance, useUser } from '../context/UserContext'
@@ -19,7 +20,7 @@ import { getConnectedScale, getConnectedWatch, getLatestWeight } from '../device
 import { getProgressData } from '../progressStorage'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { loadChatHistoryFromSupabase, saveChatMessageToSupabase } from '../lib/supabaseDb'
-import BottomNav from '../components/layout/BottomNav'
+
 
 function makeId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -335,11 +336,8 @@ export default function ChatPage() {
 
   return (
     <div className="app-layout chat-layout">
-      <div className="chat-header">
-        <div className="brand">
-          <div className="brand-icon">AI</div>
-          <span className="brand-name">{t('chatTitle')}</span>
-        </div>
+      <PageHeader title={`🤖 ${t('chatTitle')}`} />
+      <div className="chat-header" style={{ paddingTop: 0 }}>
         <span className="chat-scope-badge">{t('chatScope')} - {t(ageGuidance.group)}</span>
       </div>
 
@@ -394,7 +392,6 @@ export default function ChatPage() {
         </button>
       </div>
 
-      <BottomNav />
     </div>
   )
 }
