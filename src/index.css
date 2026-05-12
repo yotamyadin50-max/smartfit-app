@@ -582,6 +582,81 @@ button { color: inherit; }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
 }
+/* ════ WEARABLE PAGE ════ */
+.wear-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.wear-title { font-size: 20px; font-weight: 800; margin: 0; }
+
+.wear-banner { display: flex; align-items: flex-start; gap: 12px; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
+.wear-banner-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.wear-banner strong { display: block; font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.wear-banner p { margin: 0; color: var(--text-secondary); }
+.wear-banner-ok  { background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.30); }
+.wear-banner-warn { background: rgba(245,158,11,0.10); border: 1px solid rgba(245,158,11,0.35); }
+.wear-banner-error { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.35); }
+
+/* Live HR card */
+.wear-hr-live {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; border: 2px solid; border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 16px;
+  background: rgba(0,0,0,0.3);
+  transition: border-color 0.4s;
+}
+.wear-hr-left { display: flex; align-items: center; gap: 12px; }
+.wear-hr-pulse { font-size: 28px; animation: hr-pulse 1s ease-in-out infinite; }
+.wear-hr-bpm { margin: 0; font-size: 24px; font-weight: 900; line-height: 1; transition: color 0.4s; }
+.wear-hr-zone { margin: 0; font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+.wear-device-name { font-style: italic; }
+.wear-disconnect-btn { padding: 8px 16px; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; border-radius: var(--radius-sm); color: #ef4444; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.wear-disconnect-btn:hover { background: rgba(239,68,68,0.25); }
+
+/* Sections */
+.wear-section { margin-bottom: 20px; }
+.wear-section-title { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Device cards */
+.wear-device-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.wear-device-connected { border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.06); }
+.wear-device-unavailable { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
+.wear-device-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wear-device-info { display: flex; align-items: center; gap: 12px; flex: 1; }
+.wear-device-icon { font-size: 24px; flex-shrink: 0; }
+.wear-device-info strong { display: block; font-size: 14px; font-weight: 700; }
+.wear-device-info small { display: block; font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.wear-btn-danger { padding: 8px 14px; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; border-radius: var(--radius-sm); color: #ef4444; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+/* How-to steps */
+.wear-connect-steps { margin-bottom: 12px; }
+.wear-steps-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.wear-steps-toggle:hover { border-color: var(--accent); color: var(--text-primary); }
+.wear-steps-list { background: var(--bg-input); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 12px 16px 12px 28px; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.wear-steps-list em { color: var(--text-primary); font-style: normal; }
+
+/* Connect buttons */
+.wear-connect-btns { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.wear-connect-main {
+  width: 100%; padding: 15px; font-size: 16px; font-weight: 800;
+  background: linear-gradient(90deg, var(--accent) 0%, #1d4ed8 100%);
+  color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer;
+  box-shadow: 0 4px 16px rgba(59,130,246,0.35);
+  transition: opacity 0.15s, transform 0.1s;
+}
+.wear-connect-main:active { opacity: 0.88; transform: scale(0.98); }
+.wear-connect-main.loading { opacity: 0.65; cursor: wait; }
+.wear-connect-alt { width: 100%; padding: 11px; font-size: 13px; font-weight: 600; background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+.wear-connect-alt:hover { border-color: var(--accent); color: var(--text-primary); }
+.wear-compat-note { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+
+/* Toggle (GPS on/off) */
+.wear-toggle-btn { padding: 8px 20px; border: none; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; background: rgba(255,255,255,0.1); color: var(--text-secondary); transition: background 0.15s, color 0.15s; }
+.wear-toggle-btn.on { background: var(--accent); color: #fff; }
+
+/* Info box */
+.wear-info-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-top: 4px; }
+.wear-info-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.wear-info-list { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.wear-info-list li { line-height: 1.4; }
+
 .timed-exercise-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px; margin: 0 auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }
 .timed-exercise-clock { color: var(--accent); font-size: 42px; font-weight: 800; line-height: 1; }
 .timed-exercise-btn { width: auto; min-width: 160px; margin: 0; }

@@ -1,286 +1,337 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '../context/UserContext'
 import { useI18n } from '../context/I18nContext'
 import BottomNav from '../components/layout/BottomNav'
 import { readJson, writeJson } from '../lib/storage'
+import {
+  connectBLEHeartRate,
+  disconnectBLE,
+  getCurrentHR,
+  getConnectedDeviceName,
+  getHRZone,
+  HR_ZONE_COLOR,
+  HR_ZONE_LABEL,
+  isBLESupported,
+  isHRConnected,
+  onHeartRate,
+} from '../lib/heartRate'
 
-interface WearableState {
-  watchConnected: boolean
-  watchName: string
-  scaleConnected: boolean
-  scaleName: string
-  locationEnabled: boolean
-  lastSyncedAt: string | null
+// ── Platform detection ────────────────────────────────────────────────────────
+function detectPlatform() {
+  const ua = navigator.userAgent
+  const isIOS = /iPhone|iPad|iPod/.test(ua)
+  const isAndroid = /Android/.test(ua)
+  const isChrome = /Chrome/.test(ua) && !/Edg/.test(ua)
+  const isEdge = /Edg/.test(ua)
+  const isSafari = /Safari/.test(ua) && !isChrome && !isEdge
+  const isMac = /Macintosh/.test(ua)
+  return { isIOS, isAndroid, isChrome, isEdge, isSafari, isMac }
 }
 
-const WEARABLE_KEY = 'smartfit_wearable_state'
+interface SavedDevice {
+  id: string          // 'watch' | 'scale' | 'gps'
+  name: string
+  connectedAt: string
+}
+
+interface WearableState {
+  savedDevices: SavedDevice[]
+  locationEnabled: boolean
+}
+
+const WEARABLE_KEY = 'smartfit_wearable_v2'
 
 function loadState(): WearableState {
   return readJson<WearableState>(WEARABLE_KEY, {
-    watchConnected: false,
-    watchName: '',
-    scaleConnected: false,
-    scaleName: '',
+    savedDevices: [],
     locationEnabled: false,
-    lastSyncedAt: null,
   })
 }
-
-function saveState(s: WearableState) {
-  writeJson(WEARABLE_KEY, s)
-}
-
-const WATCH_OPTIONS = ['Apple Watch', 'Garmin', 'Fitbit', 'Samsung Galaxy Watch', 'Polar']
-const SCALE_OPTIONS = ['Withings Body+', 'Garmin Index', 'Xiaomi Mi Scale', 'Renpho Smart Scale']
-
-interface MockMetric {
-  labelEn: string
-  labelHe: string
-  value: string
-  icon: string
-}
-
-const MOCK_METRICS: MockMetric[] = [
-  { labelEn: 'Resting HR', labelHe: 'דופק מנוחה', value: '62 bpm', icon: '❤️' },
-  { labelEn: 'Steps Today', labelHe: 'צעדים היום', value: '7,432', icon: '🦶' },
-  { labelEn: 'Active Cal', labelHe: 'קלוריות פעילות', value: '380 kcal', icon: '🔥' },
-  { labelEn: 'Sleep', labelHe: 'שינה', value: '7h 12m', icon: '😴' },
-  { labelEn: 'Body Weight', labelHe: 'משקל גוף', value: '74.2 kg', icon: '⚖️' },
-  { labelEn: 'Body Fat', labelHe: '% שומן גוף', value: '17.4%', icon: '📊' },
-]
+function saveState(s: WearableState) { writeJson(WEARABLE_KEY, s) }
 
 export default function WearablePage() {
-  const { updateProfile } = useUser()
+  const { profile, updateProfile } = useUser()
   const { isHebrew } = useI18n()
   const navigate = useNavigate()
-  const [state, setState] = useState<WearableState>(loadState)
-  const [connecting, setConnecting] = useState<string | null>(null)
-  const [syncing, setSyncing] = useState(false)
 
-  const t = (en: string, he: string) => isHebrew ? he : en
+  const [wState, setWState] = useState<WearableState>(loadState)
+  const [connecting, setConnecting] = useState(false)
+  const [bleError, setBleError] = useState<string | null>(null)
+  const [showSteps, setShowSteps] = useState(false)
+
+  // Live BLE heart rate
+  const [liveBPM, setLiveBPM] = useState(() => getCurrentHR())
+  const [bleConnected, setBleConnected] = useState(() => isHRConnected())
+  const [bleDeviceName, setBleDeviceName] = useState(() => getConnectedDeviceName())
+
+  useEffect(() => {
+    const unsub = onHeartRate(bpm => {
+      setLiveBPM(bpm)
+      if (bpm === 0 && bleDeviceName === '') setBleConnected(false)
+    })
+    return unsub
+  }, [bleDeviceName])
+
+  // Re-check connection status on mount (singleton might still be alive)
+  useEffect(() => {
+    setBleConnected(isHRConnected())
+    setBleDeviceName(getConnectedDeviceName())
+    setLiveBPM(getCurrentHR())
+  }, [])
+
+  const T = (en: string, he: string) => isHebrew ? he : en
+
+  const platform = detectPlatform()
+  const bleOk = isBLESupported()
 
   function persist(next: WearableState) {
-    setState(next)
+    setWState(next)
     saveState(next)
+    const hasWatch = next.savedDevices.some(d => d.id === 'watch')
     updateProfile({
       devices: {
-        smartWatch: next.watchConnected,
-        smartScale: next.scaleConnected,
+        smartWatch: hasWatch,
+        smartScale: false,
         cardioLocation: next.locationEnabled,
       },
     })
   }
 
-  async function connectWatch(name: string) {
-    setConnecting(name)
-    await new Promise(r => setTimeout(r, 1200))
-    setConnecting(null)
-    persist({ ...state, watchConnected: true, watchName: name })
+  // ── Real BLE connect ────────────────────────────────────────────────────────
+  async function handleConnect(mode: 'hr' | 'any') {
+    setBleError(null)
+    if (!bleOk) {
+      setBleError(isHebrew
+        ? 'הדפדפן שלך לא תומך ב-Bluetooth. נסה Chrome ב-Android, Windows, או macOS.'
+        : 'Bluetooth not supported. Use Chrome on Android, Windows, or macOS.')
+      return
+    }
+    setConnecting(true)
+    try {
+      const { name } = await connectBLEHeartRate(mode)
+      setBleDeviceName(name)
+      setBleConnected(true)
+      const now = new Date().toLocaleTimeString()
+      const without = wState.savedDevices.filter(d => d.id !== 'watch')
+      persist({ ...wState, savedDevices: [...without, { id: 'watch', name, connectedAt: now }] })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // User cancelled = normal, don't show error
+      if (!msg.toLowerCase().includes('cancel') && !msg.toLowerCase().includes('user')) {
+        setBleError(isHebrew ? `שגיאה: ${msg}` : `Error: ${msg}`)
+      }
+    } finally {
+      setConnecting(false)
+    }
   }
 
-  async function connectScale(name: string) {
-    setConnecting(name)
-    await new Promise(r => setTimeout(r, 1200))
-    setConnecting(null)
-    persist({ ...state, scaleConnected: true, scaleName: name })
+  async function handleDisconnect() {
+    await disconnectBLE()
+    setBleConnected(false)
+    setBleDeviceName('')
+    setLiveBPM(0)
+    persist({ ...wState, savedDevices: wState.savedDevices.filter(d => d.id !== 'watch') })
   }
 
-  function disconnect(device: 'watch' | 'scale') {
-    if (device === 'watch') persist({ ...state, watchConnected: false, watchName: '' })
-    else persist({ ...state, scaleConnected: false, scaleName: '' })
-  }
-
-  async function syncNow() {
-    setSyncing(true)
-    await new Promise(r => setTimeout(r, 1800))
-    setSyncing(false)
-    persist({ ...state, lastSyncedAt: new Date().toLocaleTimeString() })
-  }
-
-  const anyConnected = state.watchConnected || state.scaleConnected
+  const hrZone = getHRZone(liveBPM, profile.age)
+  const savedWatch = wState.savedDevices.find(d => d.id === 'watch')
 
   return (
     <div className="app-layout">
       <div className="page-content">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button className="btn-secondary" style={{ padding: '6px 14px' }} onClick={() => navigate(-1)}>
-            ← {t('Back', 'חזור')}
+
+        {/* Header */}
+        <div className="wear-header">
+          <button className="btn-secondary" style={{ padding: '6px 14px', width: 'auto' }} onClick={() => navigate(-1)}>
+            {isHebrew ? '→ חזור' : '← Back'}
           </button>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-            ⌚ {t('Wearable Sync', 'סנכרון מכשירים')}
-          </h1>
+          <h1 className="wear-title">⌚ {T('Connected Devices', 'מכשירים מחוברים')}</h1>
         </div>
 
-        {/* Live metrics (shown when anything connected) */}
-        {anyConnected && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
-                {t('Live Data', 'נתונים חיים')}
-              </h2>
-              <button
-                onClick={syncing ? undefined : syncNow}
-                style={{
-                  background: syncing ? 'rgba(168,85,247,0.3)' : '#a855f7',
-                  border: 'none', borderRadius: 8, color: '#fff',
-                  padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                {syncing ? t('Syncing…', 'מסנכרן…') : t('Sync Now', 'סנכרן')}
-              </button>
+        {/* ── Platform banner ────────────────────────────────────────────── */}
+        {platform.isIOS ? (
+          <div className="wear-banner wear-banner-warn">
+            <span className="wear-banner-icon">🍎</span>
+            <div>
+              <strong>{T('iPhone / iPad', 'iPhone / iPad')}</strong>
+              <p>{T(
+                'Web Bluetooth is blocked by Apple on iOS. To connect your Apple Watch or other wearables, you need to use a native app. This feature works on Android (Chrome) and macOS (Chrome).',
+                'Apple חוסמת Bluetooth באינטרנט על iOS. כדי לחבר Apple Watch או שעון אחר, יש להשתמש באפליקציה נייטיב. פיצ׳ר זה עובד על Android (Chrome) ו-macOS (Chrome).'
+              )}</p>
             </div>
-            {state.lastSyncedAt && (
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 10 }}>
-                {t('Last synced:', 'סונכרן לאחרונה:')} {state.lastSyncedAt}
-              </p>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {MOCK_METRICS.filter((_, i) => {
-                if (i < 4) return state.watchConnected
-                return state.scaleConnected
-              }).map(metric => (
-                <div
-                  key={metric.labelEn}
-                  style={{
-                    background: 'rgba(168,85,247,0.08)',
-                    border: '1px solid rgba(168,85,247,0.25)',
-                    borderRadius: 12, padding: '12px 14px',
-                  }}
-                >
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>{metric.icon}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-                    {isHebrew ? metric.labelHe : metric.labelEn}
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>{metric.value}</div>
-                </div>
-              ))}
+          </div>
+        ) : !bleOk ? (
+          <div className="wear-banner wear-banner-warn">
+            <span className="wear-banner-icon">⚠️</span>
+            <div>
+              <strong>{T('Browser not supported', 'הדפדפן אינו נתמך')}</strong>
+              <p>{T(
+                'Real Bluetooth requires Chrome or Edge. Firefox and Safari do not support Web Bluetooth.',
+                'Bluetooth אמיתי דורש Chrome או Edge. Firefox ו-Safari אינם תומכים ב-Web Bluetooth.'
+              )}</p>
             </div>
+          </div>
+        ) : (
+          <div className="wear-banner wear-banner-ok">
+            <span className="wear-banner-icon">✅</span>
+            <p>{T(
+              'Bluetooth available — you can connect a real smartwatch or heart rate monitor.',
+              'Bluetooth זמין — ניתן לחבר שעון חכם אמיתי או חיישן דופק.'
+            )}</p>
           </div>
         )}
 
-        {/* Smartwatch */}
-        <div style={{ marginBottom: 18 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
-            ⌚ {t('Smartwatch', 'שעון חכם')}
-          </h2>
-          {state.watchConnected ? (
-            <div style={{
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)',
-              borderRadius: 12, padding: '12px 14px',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
+        {/* ── Live HR card (when connected + reading) ───────────────────── */}
+        {bleConnected && (
+          <div className="wear-hr-live" style={{ borderColor: HR_ZONE_COLOR[hrZone] }}>
+            <div className="wear-hr-left">
+              <span className="wear-hr-pulse">❤️</span>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{state.watchName}</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#22c55e' }}>● {t('Connected', 'מחובר')}</p>
+                <p className="wear-hr-bpm" style={{ color: HR_ZONE_COLOR[hrZone] }}>
+                  {liveBPM > 0 ? `${liveBPM} bpm` : T('Connected — waiting for reading…', 'מחובר — ממתין לנתונים…')}
+                </p>
+                <p className="wear-hr-zone">
+                  {liveBPM > 0 && (isHebrew ? HR_ZONE_LABEL[hrZone].he : HR_ZONE_LABEL[hrZone].en)}
+                  {bleDeviceName && <span className="wear-device-name"> · {bleDeviceName}</span>}
+                </p>
               </div>
-              <button
-                onClick={() => disconnect('watch')}
-                style={{ background: 'rgba(239,68,68,0.2)', border: 'none', borderRadius: 8, color: '#ef4444', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
-              >
-                {t('Disconnect', 'נתק')}
-              </button>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {WATCH_OPTIONS.map(name => (
-                <button
-                  key={name}
-                  onClick={() => connectWatch(name)}
-                  disabled={connecting === name}
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: 10, padding: '10px 14px',
-                    color: '#fff', cursor: 'pointer',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    fontSize: 13, fontWeight: 600,
-                  }}
-                >
-                  <span>{name}</span>
-                  <span style={{ fontSize: 12, color: '#a855f7' }}>
-                    {connecting === name ? t('Connecting…', 'מתחבר…') : t('Connect', 'חבר')}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Smart Scale */}
-        <div style={{ marginBottom: 18 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
-            ⚖️ {t('Smart Scale', 'מאזניים חכמות')}
-          </h2>
-          {state.scaleConnected ? (
-            <div style={{
-              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)',
-              borderRadius: 12, padding: '12px 14px',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{state.scaleName}</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#22c55e' }}>● {t('Connected', 'מחובר')}</p>
-              </div>
-              <button
-                onClick={() => disconnect('scale')}
-                style={{ background: 'rgba(239,68,68,0.2)', border: 'none', borderRadius: 8, color: '#ef4444', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
-              >
-                {t('Disconnect', 'נתק')}
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {SCALE_OPTIONS.map(name => (
-                <button
-                  key={name}
-                  onClick={() => connectScale(name)}
-                  disabled={connecting === name}
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: 10, padding: '10px 14px',
-                    color: '#fff', cursor: 'pointer',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    fontSize: 13, fontWeight: 600,
-                  }}
-                >
-                  <span>{name}</span>
-                  <span style={{ fontSize: 12, color: '#a855f7' }}>
-                    {connecting === name ? t('Connecting…', 'מתחבר…') : t('Connect', 'חבר')}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Location */}
-        <div style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          borderRadius: 12, padding: '12px 14px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <div>
-            <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>
-              📍 {t('Outdoor Tracking', 'מעקב חוץ')}
-            </p>
-            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
-              {t('GPS for runs & cycling', 'GPS לריצות ורכיבות')}
-            </p>
+            <button className="wear-disconnect-btn" onClick={handleDisconnect}>
+              {T('Disconnect', 'נתק')}
+            </button>
           </div>
-          <button
-            onClick={() => persist({ ...state, locationEnabled: !state.locationEnabled })}
-            style={{
-              background: state.locationEnabled ? '#a855f7' : 'rgba(255,255,255,0.1)',
-              border: 'none', borderRadius: 20, padding: '6px 16px',
-              color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}
-          >
-            {state.locationEnabled ? t('On', 'פועל') : t('Off', 'כבוי')}
-          </button>
+        )}
+
+        {/* ── Error ─────────────────────────────────────────────────────── */}
+        {bleError && (
+          <div className="wear-banner wear-banner-error">
+            <span className="wear-banner-icon">❌</span>
+            <p>{bleError}</p>
+          </div>
+        )}
+
+        {/* ── WATCH SECTION ─────────────────────────────────────────────── */}
+        <div className="wear-section">
+          <h2 className="wear-section-title">⌚ {T('Smartwatch / Heart Rate Monitor', 'שעון חכם / חיישן דופק')}</h2>
+
+          {bleConnected && savedWatch ? (
+            /* ── Already connected ── */
+            <div className="wear-device-card wear-device-connected">
+              <div className="wear-device-info">
+                <span className="wear-device-icon">⌚</span>
+                <div>
+                  <strong>{savedWatch.name}</strong>
+                  <small>{T('Connected', 'מחובר')} · {savedWatch.connectedAt}</small>
+                </div>
+              </div>
+              <button className="wear-btn-danger" onClick={handleDisconnect}>
+                {T('Disconnect', 'נתק')}
+              </button>
+            </div>
+          ) : !bleOk || platform.isIOS ? (
+            /* ── Not supported ── */
+            <div className="wear-device-card wear-device-unavailable">
+              <span className="wear-device-icon">🚫</span>
+              <p>{T('Not available on this device/browser', 'לא זמין במכשיר/דפדפן זה')}</p>
+            </div>
+          ) : (
+            /* ── Connect options ── */
+            <>
+              <div className="wear-connect-steps">
+                <button className="wear-steps-toggle" onClick={() => setShowSteps(s => !s)}>
+                  {T('📋 How to connect your watch', '📋 איך לחבר את השעון')}
+                  <span>{showSteps ? '▲' : '▼'}</span>
+                </button>
+                {showSteps && (
+                  <ol className="wear-steps-list">
+                    <li>{T('Make sure Bluetooth is ON on your phone', 'וודא שהבלוטות׳ מופעל בטלפון')}</li>
+                    <li>{T('On your watch: open Heart Rate app OR enable HR broadcast mode', 'בשעון: פתח אפליקציית דופק OR הפעל מצב שידור דופק')}</li>
+                    <li>
+                      {T('Apple Watch: ', 'Apple Watch: ')}
+                      <em>{T('Settings → Privacy → Motion & Fitness → enable', 'הגדרות → פרטיות → תנועה וכושר → הפעל')}</em>
+                    </li>
+                    <li>
+                      {T('Samsung Galaxy Watch: ', 'Samsung Galaxy Watch: ')}
+                      <em>{T('Galaxy Wearable app → Watch settings → Bluetooth → make discoverable', 'אפליקציית Galaxy Wearable → הגדרות שעון → Bluetooth → הפוך לנגיש')}</em>
+                    </li>
+                    <li>{T('Click "Connect" below and pick your watch from the list', 'לחץ "חבר" ובחר את השעון מהרשימה')}</li>
+                  </ol>
+                )}
+              </div>
+
+              <div className="wear-connect-btns">
+                <button
+                  className={`wear-connect-main${connecting ? ' loading' : ''}`}
+                  disabled={connecting}
+                  onClick={() => handleConnect('hr')}
+                >
+                  {connecting
+                    ? T('🔍 Searching…', '🔍 מחפש…')
+                    : T('🔵 Connect Watch (Heart Rate)', '🔵 חבר שעון (דופק)')}
+                </button>
+
+                <button
+                  className="wear-connect-alt"
+                  disabled={connecting}
+                  onClick={() => handleConnect('any')}
+                >
+                  {T('Show all nearby Bluetooth devices', 'הצג את כל מכשירי הבלוטות׳ הקרובים')}
+                </button>
+              </div>
+
+              <p className="wear-compat-note">
+                ✓ {T('Compatible: Samsung Galaxy Watch 4+, Polar H10, Garmin HRM, Apple Watch (macOS Chrome), Amazfit, Fitbit Sense', 'תואם: Samsung Galaxy Watch 4+, Polar H10, Garmin HRM, Apple Watch (macOS Chrome), Amazfit, Fitbit Sense')}
+              </p>
+            </>
+          )}
         </div>
+
+        {/* ── GPS LOCATION ──────────────────────────────────────────────── */}
+        <div className="wear-section">
+          <h2 className="wear-section-title">📍 {T('GPS Tracking', 'מעקב GPS')}</h2>
+          <div className="wear-device-card wear-device-row">
+            <div className="wear-device-info">
+              <span className="wear-device-icon">📍</span>
+              <div>
+                <strong>{T('Location Access', 'גישה למיקום')}</strong>
+                <small>{T('Used for outdoor workouts — measures distance & route', 'לאימונים בחוץ — מדידת מרחק ומסלול')}</small>
+              </div>
+            </div>
+            <button
+              className={`wear-toggle-btn${wState.locationEnabled ? ' on' : ''}`}
+              onClick={async () => {
+                if (!wState.locationEnabled) {
+                  try {
+                    await new Promise<void>((res, rej) => {
+                      navigator.geolocation.getCurrentPosition(() => res(), rej)
+                    })
+                    persist({ ...wState, locationEnabled: true })
+                  } catch {
+                    setBleError(isHebrew ? 'לא ניתן לקבל גישה למיקום' : 'Location access denied')
+                  }
+                } else {
+                  persist({ ...wState, locationEnabled: false })
+                }
+              }}
+            >
+              {wState.locationEnabled ? T('ON', 'פועל') : T('OFF', 'כבוי')}
+            </button>
+          </div>
+        </div>
+
+        {/* ── What's supported info ──────────────────────────────────────── */}
+        <div className="wear-info-box">
+          <p className="wear-info-title">ℹ️ {T('About smartwatch connectivity', 'על חיבור שעונים חכמים')}</p>
+          <ul className="wear-info-list">
+            <li>✅ Android + Chrome → {T('Full BLE support', 'תמיכה מלאה ב-BLE')}</li>
+            <li>✅ macOS + Chrome → {T('Supports Apple Watch, Polar, Garmin', 'תומך Apple Watch, Polar, Garmin')}</li>
+            <li>✅ Windows + Chrome/Edge → {T('Supports most BLE HR monitors', 'תומך ברוב חיישני דופק BLE')}</li>
+            <li>❌ iPhone / iPad → {T('Blocked by Apple — native app required', 'חסום על ידי Apple — דרושה אפליקציה')}</li>
+            <li>❌ Firefox / Safari → {T('Web Bluetooth not supported', 'Web Bluetooth לא נתמך')}</li>
+          </ul>
+        </div>
+
       </div>
       <BottomNav />
     </div>
