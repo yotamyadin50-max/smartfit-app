@@ -284,14 +284,15 @@ export default function TrainingPlanPage() {
           <h3 className="settings-section-title">{t('weeklyPlan')}</h3>
           <div className="plan-day-list">
             {WEEK_DAYS.map(day => {
+              const isRest = draftPlan[day] === 'rest'
               const isGymDay = hasGym && gymDays.includes(day)
-              const isHomeDay = hasHome && !gymDays.includes(day) && draftPlan[day] !== 'rest'
+              const isHomeDay = hasHome && !gymDays.includes(day) && !isRest
               return (
                 <div key={day} className={`plan-day-row ${draftPlan[day]}`}>
                   <div>
                     <span className="plan-day-name">{t(dayLabelKeys[day])}</span>
                     <span className="plan-day-desc">
-                      {draftPlan[day] === 'rest'
+                      {isRest
                         ? t('recoveryDayDesc')
                         : isGymDay
                         ? isHebrew ? '🏋️ חדר כושר' : '🏋️ Gym'
@@ -300,13 +301,36 @@ export default function TrainingPlanPage() {
                         : t('trainingDayDesc')}
                     </span>
                   </div>
-                  <span className={`focus-pill ${draftPlan[day]}`}>
-                    {t(focusLabelKeys[draftPlan[day]])}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Gym/Home toggle — only for active days when user trains at both */}
+                    {!isRest && hasGym && hasHome && (
+                      <button
+                        className={`plan-location-toggle${isGymDay ? ' gym' : ' home'}`}
+                        onClick={() => toggleGymDay(day)}
+                        title={isHebrew ? 'לחץ להחליף מיקום' : 'Toggle location'}
+                      >
+                        {isGymDay ? '🏋️' : '🏠'}
+                      </button>
+                    )}
+                    {/* Gym label for gym-only users */}
+                    {!isRest && hasGym && !hasHome && (
+                      <span className="plan-location-badge gym">🏋️</span>
+                    )}
+                    <span className={`focus-pill ${draftPlan[day]}`}>
+                      {t(focusLabelKeys[draftPlan[day]])}
+                    </span>
+                  </div>
                 </div>
               )
             })}
           </div>
+          {hasGym && hasHome && (
+            <p className="settings-helper" style={{ marginTop: 8 }}>
+              {isHebrew
+                ? 'לחץ על 🏋️/🏠 בכל יום כדי לשנות היכן האימון מתקיים'
+                : 'Tap 🏋️/🏠 on any day to switch between gym and home'}
+            </p>
+          )}
         </div>
       </div>
     </div>
