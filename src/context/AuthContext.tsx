@@ -21,6 +21,27 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+// ── Persistent device session ─────────────────────────────────────────────────
+// Stores the last known user in localStorage so the app opens instantly
+// without waiting for Supabase. Supabase then verifies in the background.
+
+const CACHED_USER_KEY = 'smartfit_cached_user'
+
+function getCachedUser(): User | null {
+  try {
+    const v = localStorage.getItem(CACHED_USER_KEY)
+    if (!v) return null
+    const parsed = JSON.parse(v)
+    if (typeof parsed?.id === 'string' && typeof parsed?.email === 'string') return parsed
+    return null
+  } catch { return null }
+}
+
+function setCachedUser(user: User | null) {
+  if (user) localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user))
+  else localStorage.removeItem(CACHED_USER_KEY)
+}
+
 // ── Mock fallback (used when Supabase is not configured) ──────────────────────
 
 const MOCK_KEY = 'smartfit_mock_user'
@@ -54,28 +75,35 @@ function mockSignUp(email: string, password: string) {
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]       = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Initialise immediately from cache → no loading screen for returning users
+  const [user, setUserState] = useState<User | null>(() => getCachedUser())
+  const [loading, setLoading] = useState(() => getCachedUser() === null)
+
+  const setUser = (u: User | null) => {
+    setUserState(u)
+    setCachedUser(u)
+  }
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       // ── Mock mode ─────────────────────────────────────────────────────────
       const stored = readJson<unknown>(MOCK_KEY, null)
-      setUser(isMockUser(stored) ? stored : null)
+      const mockUser = isMockUser(stored) ? stored : null
+      setUser(mockUser)
       setLoading(false)
       return
     }
 
     // ── Supabase mode ─────────────────────────────────────────────────────────
-    // Restore session from Supabase on mount (with 5s timeout safety net)
+    // Verify session in background (user already sees the app from cache)
     let settled = false
     const timeoutId = setTimeout(() => {
       if (!settled) {
         settled = true
-        console.warn('[Auth] getSession timed out — setting loading=false')
+        console.warn('[Auth] getSession timed out — keeping cached user')
         setLoading(false)
       }
-    }, 5000)
+    }, 8000)
 
     supabase.auth.getSession().then(({ data }) => {
       if (settled) return
@@ -84,6 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = data.session
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' })
+      } else {
+        // Session expired — clear cache and send to login
+        setUser(null)
       }
       setLoading(false)
     }).catch(() => {
@@ -94,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    // Listen for login / logout events (e.g. email confirmation redirect)
+    // Listen for login / logout events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' })
