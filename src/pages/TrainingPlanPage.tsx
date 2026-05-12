@@ -110,8 +110,13 @@ export default function TrainingPlanPage() {
   const goals = getProfileGoals(profile)
   const locations = getProfileWorkoutTypes(profile)
   const ageGuidance = getAgeGuidance(profile)
+  const hasGym = locations.includes('gym')
+  const hasHome = locations.includes('home')
+  const isMultiLocation = hasGym && hasHome
+
   const [selectedRestDays, setSelectedRestDays] = useState<WeekDay[]>(getRestDays(currentPlan))
   const [draftPlan, setDraftPlan] = useState<WeeklyPlan>(currentPlan)
+  const [gymDays, setGymDays] = useState<WeekDay[]>(profile.gymDays ?? [])
   const [saved, setSaved] = useState(false)
 
   const canGenerate = selectedRestDays.length >= MIN_REST_DAYS && selectedRestDays.length <= MAX_REST_DAYS
@@ -129,12 +134,26 @@ export default function TrainingPlanPage() {
     })
   }
 
+  const toggleGymDay = (day: WeekDay) => {
+    if (selectedRestDays.includes(day)) return // can't be gym day if it's rest
+    setGymDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    )
+    setSaved(false)
+  }
+
   const handleGenerate = () => {
     if (!canGenerate) return
     const nextPlan = buildMockAiPlan(selectedRestDays, goals, profile.fitnessLevel)
     setDraftPlan(nextPlan)
-    updateProfile({ weeklyPlan: nextPlan })
+    updateProfile({ weeklyPlan: nextPlan, gymDays })
     setSaved(true)
+  }
+
+  const handleSaveGymDays = () => {
+    updateProfile({ gymDays })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   return (
@@ -184,6 +203,61 @@ export default function TrainingPlanPage() {
           </button>
         </div>
 
+        {/* Gym days selector — only for users who train at both gym and home */}
+        {isMultiLocation && (
+          <div className="settings-section">
+            <h3 className="settings-section-title">
+              🏋️ {t('language') === 'he' ? 'ימי חדר כושר' : 'Gym Days'}
+            </h3>
+            <p className="settings-helper">
+              {t('language') === 'he'
+                ? 'סמן אילו ימים אתה הולך לחדר כושר — שאר הימים יהיו אימון בית'
+                : 'Mark which days you go to the gym — the rest will be home workouts'}
+            </p>
+            <div className="rest-day-grid">
+              {WEEK_DAYS.map(day => {
+                const isRest = selectedRestDays.includes(day)
+                const isGym = gymDays.includes(day)
+                return (
+                  <button
+                    key={day}
+                    onClick={() => toggleGymDay(day)}
+                    disabled={isRest}
+                    style={{
+                      padding: '8px 4px',
+                      borderRadius: 10,
+                      border: 'none',
+                      cursor: isRest ? 'default' : 'pointer',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      background: isRest
+                        ? 'rgba(255,255,255,0.05)'
+                        : isGym
+                        ? '#22c55e'
+                        : 'rgba(255,255,255,0.1)',
+                      color: isRest ? 'rgba(255,255,255,0.25)' : isGym ? '#000' : '#fff',
+                    }}
+                  >
+                    {t(dayLabelKeys[day])}
+                    {!isRest && (
+                      <span style={{ display: 'block', fontSize: 10, marginTop: 2 }}>
+                        {isGym ? '🏋️' : '🏠'}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="settings-helper">
+              🏋️ {gymDays.length} {t('language') === 'he' ? 'ימי חדר כושר' : 'gym days'} ·
+              🏠 {WEEK_DAYS.filter(d => !selectedRestDays.includes(d) && !gymDays.includes(d)).length} {t('language') === 'he' ? 'ימי בית' : 'home days'}
+            </p>
+            <button className="btn-primary" onClick={handleSaveGymDays}>
+              {saved ? '✅' : (t('language') === 'he' ? 'שמור ימי חדר כושר' : 'Save gym days')}
+            </button>
+          </div>
+        )}
+
         <div className="settings-section">
           <h3 className="settings-section-title">{t('weeklyPlan')}</h3>
           <div className="plan-day-list">
@@ -192,7 +266,13 @@ export default function TrainingPlanPage() {
                 <div>
                   <span className="plan-day-name">{t(dayLabelKeys[day])}</span>
                   <span className="plan-day-desc">
-                    {draftPlan[day] === 'rest' ? t('recoveryDayDesc') : t('trainingDayDesc')}
+                    {draftPlan[day] === 'rest'
+                      ? t('recoveryDayDesc')
+                      : isMultiLocation
+                      ? gymDays.includes(day)
+                        ? '🏋️'
+                        : '🏠'
+                      : t('trainingDayDesc')}
                   </span>
                 </div>
                 <span className={`focus-pill ${draftPlan[day]}`}>

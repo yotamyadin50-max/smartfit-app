@@ -50,6 +50,7 @@ export interface UserProfile {
   workoutDuration: 10 | 15 | 20 | 30 | 45 | 60
   workoutType: WorkoutType
   workoutTypes?: WorkoutType[]
+  gymDays?: WeekDay[]
   equipment?: EquipmentOption[]
   nutritionPref: NutritionPref
   nutrition?: {
