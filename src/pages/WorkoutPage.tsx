@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useI18n } from '../context/I18nContext'
-import { getAgeGuidance, getProfileGoals, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
+import { ExerciseAnimation } from '../components/ExerciseAnimation'
+import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type ScheduleFocus, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
 import {
   mockAerobicWorkouts,
   mockWorkouts,
@@ -15,14 +16,16 @@ import { getHeartRateSummary } from '../deviceConnections'
 import { estimateCardioCalories, getCardioActivityType } from '../fitnessTracking'
 import { startLocationTracker, type LocationTrackerStatus } from '../locationTracker'
 import { getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
-import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, isHRConnected, onHeartRate } from '../lib/heartRate'
+import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, onHeartRate } from '../lib/heartRate'
 
 type Phase = 'select' | 'countdown' | 'active' | 'rest' | 'aerobic' | 'done'
 type WorkoutChoice = WorkoutCategory | 'aerobic'
 type AgeGuidance = ReturnType<typeof getAgeGuidance>
 type GymFocus = 'full' | 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'abs'
 type GymGoal = 'strength' | 'muscle' | 'endurance'
+type WorkoutDuration = 10 | 15 | 20 | 30 | 45 | 60 | 75 | 90
 type GymDuration = 15 | 20 | 30 | 45 | 60 | 75 | 90
+type HomeWorkoutCategory = Exclude<WorkoutCategory, 'gym'>
 type GymProgressMode = 'gentle' | 'steady' | 'boost'
 type CardioSummary = {
   calories: number
@@ -108,62 +111,34 @@ const GYM_EXERCISES: GymExerciseTemplate[] = [
   { id: 'torso-rotation', focus: 'abs', name: 'Torso Rotation Machine', nameHe: 'מכונת רוטציה לבטן', equipment: 'Torso rotation machine', equipmentHe: 'מכונת רוטציה', instruction: 'Use a light load and rotate through a controlled, pain-free range.', instructionHe: 'בחר משקל קל וסובב בטווח נשלט וללא כאב.' },
 ]
 
-// Wikipedia article name for each exercise (used to fetch a real machine photo)
-const WIKI_ARTICLE: Record<string, string> = {
-  'leg-press':             'Leg press',
-  'lat-pulldown':          'Lat pulldown',
-  'chest-press':           'Chest press',
-  'cable-row':             'Cable row',
-  'machine-shoulder-press':'Overhead press',
-  'incline-db-press':      'Bench press',
-  'cable-fly':             'Cable fly',
-  'pec-deck':              'Pec deck',
-  'single-arm-row':        'Bent-over row',
-  'chest-supported-row':   'Bent-over row',
-  'back-extension':        'Hyperextension (exercise)',
-  'leg-curl':              'Leg curl',
-  'leg-extension':         'Leg extension (exercise)',
-  'smith-squat':           'Smith machine',
-  'calf-raise':            'Calf raise',
-  'cable-lateral-raise':   'Shoulder lateral raise',
-  'face-pull':             'Face pull',
-  'rear-delt-machine':     'Rear delt fly',
-  'triceps-pushdown':      'Triceps extension',
-  'preacher-curl':         'Preacher curl',
-  'hammer-curl':           'Hammer curl',
-  'cable-crunch':          'Crunch (exercise)',
-  'hanging-knee-raise':    'Knee raise',
-  'torso-rotation':        'Torso rotation',
+// Dumbbell alternatives for machine exercises — shown when user taps "No machine"
+const DUMBBELL_ALTERNATIVES: Record<string, { name: string; nameHe: string; instruction: string; instructionHe: string }> = {
+  'leg-press':             { name: 'Dumbbell Goblet Squat', nameHe: 'סקוואט גביע עם משקולת', instruction: 'Hold a dumbbell vertically at chest height, squat deep, and push through the heels.', instructionHe: 'החזק משקולת אנכית בגובה החזה, צנח עמוק ודחוף דרך העקבים.' },
+  'lat-pulldown':          { name: 'Dumbbell Single-Arm Row', nameHe: 'חתירה יד אחת עם משקולת', instruction: 'Place one knee on a bench, row the dumbbell to the hip with a flat back.', instructionHe: 'הנח ברך אחת על ספסל, חתור את המשקולת לכיוון האגן עם גב ישר.' },
+  'chest-press':           { name: 'Dumbbell Floor Press', nameHe: 'לחיצת חזה על הרצפה', instruction: 'Lie on the floor, press dumbbells from chest level, stop when elbows touch the floor.', instructionHe: 'שכב על הרצפה, לחץ משקולות מגובה החזה, עצור כשהמרפקים נוגעים ברצפה.' },
+  'cable-row':             { name: 'Dumbbell Bent-Over Row', nameHe: 'חתירה מכופף עם משקולות', instruction: 'Hinge at the hips, keep the back flat, row both dumbbells to the lower ribs.', instructionHe: 'כופף מהאגן, שמור גב ישר, חתור שתי משקולות לכיוון הצלעות התחתונות.' },
+  'machine-shoulder-press':{ name: 'Dumbbell Shoulder Press', nameHe: 'לחיצת כתפיים עם משקולות', instruction: 'Sit upright, press dumbbells from shoulder height overhead without arching the back.', instructionHe: 'שב זקוף, לחץ משקולות מגובה הכתפיים מעלה בלי להקשית הגב.' },
+  'incline-db-press':      { name: 'Dumbbell Floor Press (Incline Angle)', nameHe: 'לחיצת חזה עליון בזווית', instruction: 'Place your upper back on a low surface at an angle and press the dumbbells.', instructionHe: 'הישען עם הגב העליון על משטח נמוך בזווית ולחץ את המשקולות.' },
+  'cable-fly':             { name: 'Dumbbell Fly', nameHe: 'פרפר עם משקולות', instruction: 'Lie on the floor, open the arms wide with a soft elbow, and squeeze the chest at the top.', instructionHe: 'שכב על הרצפה, פרוש ידיים עם מרפקים רכים וכווץ חזה בסוף התנועה.' },
+  'pec-deck':              { name: 'Dumbbell Fly', nameHe: 'פרפר עם משקולות', instruction: 'Lie on the floor, open the arms wide with a soft elbow, and squeeze the chest at the top.', instructionHe: 'שכב על הרצפה, פרוש ידיים עם מרפקים רכים וכווץ חזה בסוף התנועה.' },
+  'single-arm-row':        { name: 'Dumbbell Single-Arm Row', nameHe: 'חתירה יד אחת עם משקולת', instruction: 'Place one knee on a bench, row the dumbbell to the hip with a flat back.', instructionHe: 'הנח ברך אחת על ספסל, חתור את המשקולת לכיוון האגן עם גב ישר.' },
+  'chest-supported-row':   { name: 'Dumbbell Prone Row', nameHe: 'חתירה שכיבה עם משקולות', instruction: 'Lie face-down on a bench or ottoman and row both dumbbells up toward the hips.', instructionHe: 'שכב על הבטן על ספסל ומשוך שתי משקולות לכיוון האגן.' },
+  'back-extension':        { name: 'Dumbbell Good Morning', nameHe: 'גוד מורנינג עם משקולת', instruction: 'Hold a light dumbbell at the chest, hinge at the hips, and squeeze the glutes to return.', instructionHe: 'החזק משקולת קלה בחזה, כופף מהאגן וכווץ ישבן לחזרה.' },
+  'leg-curl':              { name: 'Dumbbell Romanian Deadlift', nameHe: 'רומניאן דדליפט עם משקולות', instruction: 'Hold dumbbells, hinge at the hips with soft knees, feel the hamstring stretch, then drive hips forward.', instructionHe: 'החזק משקולות, כופף מהאגן עם ברכיים רכות, הרגש מתיחה בהמסטרינג ודחוף אגן קדימה.' },
+  'leg-extension':         { name: 'Dumbbell Split Squat', nameHe: 'סקוואט פיצול עם משקולות', instruction: 'Step one foot back, lower the rear knee toward the floor, keep the front shin vertical.', instructionHe: 'צעד רגל אחת לאחור, הורד ברך אחורית לכיוון הרצפה, שמור שוק קדמי אנכי.' },
+  'smith-squat':           { name: 'Dumbbell Squat', nameHe: 'סקוואט עם משקולות', instruction: 'Hold dumbbells at the sides, squat until thighs are parallel, and drive through the heels.', instructionHe: 'החזק משקולות בצדדים, צנח עד שהירכיים מקבילות לרצפה ודחוף דרך העקבים.' },
+  'calf-raise':            { name: 'Single-Leg Calf Raise', nameHe: 'עלייה על קצות אצבעות ברגל אחת', instruction: 'Stand on one foot on a step or flat floor, rise onto the toes slowly, and lower with control.', instructionHe: 'עמוד על רגל אחת על מדרגה או רצפה, עלה על קצות האצבעות לאט ורד בשליטה.' },
+  'cable-lateral-raise':   { name: 'Dumbbell Lateral Raise', nameHe: 'הרחקת כתף עם משקולת', instruction: 'Raise dumbbells to shoulder height with soft elbows, pause, then lower slowly.', instructionHe: 'הרם משקולות לגובה הכתף עם מרפקים רכים, עצור ואז הורד לאט.' },
+  'face-pull':             { name: 'Band Face Pull (or Dumbbell Rear Fly)', nameHe: 'משיכת פנים עם גומיה', instruction: 'If no band: lie face-down on a bench and raise the arms out to the sides like a reverse fly.', instructionHe: 'בלי גומיה: שכב על הבטן על ספסל והרם ידיים לצדדים כמו פרפר הפוך.' },
+  'rear-delt-machine':     { name: 'Dumbbell Rear Delt Fly', nameHe: 'פרפר אחורי עם משקולות', instruction: 'Lie face-down on a bench, raise light dumbbells out to the sides, and squeeze the upper back.', instructionHe: 'שכב על הבטן על ספסל, הרם משקולות קלות לצדדים וכווץ גב עליון.' },
+  'triceps-pushdown':      { name: 'Dumbbell Overhead Triceps Extension', nameHe: 'פשיטת מרפקים מעל הראש', instruction: 'Hold one dumbbell overhead with both hands, lower it behind the head, and extend back up.', instructionHe: 'החזק משקולת אחת מעל הראש עם שתי ידיים, הורד מאחורי הראש וחזור מעלה.' },
+  'preacher-curl':         { name: 'Dumbbell Concentration Curl', nameHe: 'כפיפת ריכוז עם משקולת', instruction: 'Sit, brace the elbow against the inner thigh, and curl the dumbbell slowly.', instructionHe: 'שב, הישען עם המרפק על הירך הפנימית וכפוף את המשקולת לאט.' },
+  'hammer-curl':           { name: 'Dumbbell Hammer Curl', nameHe: 'כפיפת פטיש עם משקולות', instruction: 'Curl with palms facing each other and avoid swinging the torso.', instructionHe: 'כפוף כשהכפות פונות זו לזו והימנע מתנופת גוף.' },
+  'cable-crunch':          { name: 'Dumbbell Crunch', nameHe: 'כפיפת בטן עם משקולת', instruction: 'Lie on your back, hold a light dumbbell at the chest, and crunch the ribs toward the pelvis.', instructionHe: 'שכב על הגב, החזק משקולת קלה בחזה וכפוף צלעות לכיוון האגן.' },
+  'hanging-knee-raise':    { name: 'Floor Lying Leg Raise', nameHe: 'הרמת רגליים שכיבה', instruction: 'Lie flat, keep legs straight, raise them to 90°, and lower slowly without arching the back.', instructionHe: 'שכב שטוח, שמור רגליים ישרות, הרם ל-90° ורד לאט בלי להקשית גב.' },
+  'torso-rotation':        { name: 'Dumbbell Russian Twist', nameHe: 'רוטציה רוסית עם משקולת', instruction: 'Sit with feet off the floor, hold a light dumbbell, and rotate the torso side to side.', instructionHe: 'שב עם רגליים מורמות מהרצפה, החזק משקולת קלה וסובב גו לצדדים.' },
 }
 
-// Module-level image cache so each Wikipedia article is only fetched once per session
-const wikiImageCache = new Map<string, string | null>()
-
-function WikiImage({ exerciseId, alt }: { exerciseId: string; alt: string }) {
-  const article = WIKI_ARTICLE[exerciseId] ?? exerciseId.replace(/-/g, ' ')
-  const [src, setSrc] = useState<string | null>(() => wikiImageCache.get(article) ?? null)
-  const [status, setStatus] = useState<'loading' | 'done'>(() =>
-    wikiImageCache.has(article) ? 'done' : 'loading'
-  )
-
-  useEffect(() => {
-    if (wikiImageCache.has(article)) return
-    const slug = encodeURIComponent(article.replace(/ /g, '_'))
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`)
-      .then(r => r.json())
-      .then(data => {
-        const url: string | null = data.thumbnail?.source ?? null
-        wikiImageCache.set(article, url)
-        setSrc(url)
-      })
-      .catch(() => wikiImageCache.set(article, null))
-      .finally(() => setStatus('done'))
-  }, [article])
-
-  if (status === 'loading') return <div className="exercise-machine-img skeleton" />
-  if (!src) return <div className="exercise-machine-img fallback">🏋️</div>
-  return <img src={src} alt={alt} className="exercise-machine-img" />
-}
 
 const goalLabelKeys: Record<Goal, string> = {
   cut: 'toneUp',
@@ -198,6 +173,18 @@ function getStartOfWeek(date = new Date()) {
   return start
 }
 
+function normalizeWorkoutDuration(duration?: number): WorkoutDuration {
+  if (!duration) return 20
+  if (duration <= 10) return 10
+  if (duration <= 15) return 15
+  if (duration <= 20) return 20
+  if (duration <= 30) return 30
+  if (duration <= 45) return 45
+  if (duration <= 60) return 60
+  if (duration <= 75) return 75
+  return 90
+}
+
 function normalizeGymDuration(duration?: number): GymDuration {
   if (!duration) return 20
   if (duration <= 15) return 15
@@ -207,6 +194,15 @@ function normalizeGymDuration(duration?: number): GymDuration {
   if (duration <= 60) return 60
   if (duration <= 75) return 75
   return 90
+}
+
+function getConfiguredWorkoutDuration(profile: UserProfile, mode: 'home' | 'gym'): WorkoutDuration {
+  const modeDuration = mode === 'gym' ? profile.gymWorkoutDuration : profile.homeWorkoutDuration
+  return normalizeWorkoutDuration(modeDuration ?? profile.workoutDuration ?? profile.workout_time)
+}
+
+function getConfiguredGymDuration(profile: UserProfile): GymDuration {
+  return normalizeGymDuration(profile.gymWorkoutDuration ?? profile.workoutDuration ?? profile.workout_time)
 }
 
 function getDefaultGymGoal(profile: UserProfile): GymGoal {
@@ -224,14 +220,127 @@ function getDefaultGymFocuses(profile: UserProfile): GymFocus[] {
   return ['full']
 }
 
+/**
+ * Maps the user's primary goal to the WorkoutCategory that best fits it,
+ * so the "Goal Workout" tab actually shows THEIR goal rather than a generic preset.
+ * bulk  → arm/strength work
+ * cut   → abs / core-conditioning
+ * endurance → leg endurance
+ * everything else → general 'goal' workout
+ */
+function deriveGoalWorkoutCategory(profile: UserProfile): WorkoutCategory {
+  const goals = getProfileGoals(profile)
+  if (goals.includes('bulk'))      return 'arms'  // compound + isolation for mass
+  if (goals.includes('cut'))       return 'abs'   // core + conditioning for fat loss
+  if (goals.includes('endurance')) return 'legs'  // leg endurance base
+  return 'goal'                                   // health / fitness / flexibility / consistency
+}
+
+function resolveHomeWorkoutCategory(choice: HomeWorkoutCategory, profile: UserProfile): HomeWorkoutCategory {
+  if (choice !== 'goal') return choice
+  const category = deriveGoalWorkoutCategory(profile)
+  return category === 'gym' ? 'goal' : category
+}
+
+function getHomeExerciseCount(duration: WorkoutDuration) {
+  if (duration <= 15) return 3
+  if (duration <= 20) return 4
+  if (duration <= 30) return 5
+  if (duration <= 45) return 7
+  if (duration <= 60) return 9
+  if (duration <= 75) return 10
+  return 12
+}
+
+function getHomeSetTarget(level: UserProfile['fitnessLevel'], duration: WorkoutDuration) {
+  const base = level === 'advanced' ? 4 : level === 'beginner' ? 2 : 3
+  if (duration >= 60 && level !== 'beginner') return base + 1
+  if (duration <= 15 && base > 2) return base - 1
+  return base
+}
+
+function getHomeRestSeconds(level: UserProfile['fitnessLevel'], duration: WorkoutDuration) {
+  if (level === 'beginner') return duration >= 45 ? 60 : 45
+  if (level === 'advanced') return duration >= 45 ? 45 : 35
+  return duration >= 45 ? 50 : 40
+}
+
+function getHomeDifficulty(level: UserProfile['fitnessLevel'], duration: WorkoutDuration): Workout['difficulty'] {
+  if (level === 'advanced' || duration >= 60) return 'hard'
+  if (level === 'beginner' && duration <= 30) return 'easy'
+  return 'medium'
+}
+
+function selectHomeExercises(category: HomeWorkoutCategory, profile: UserProfile, count: number) {
+  const resolvedCategory = resolveHomeWorkoutCategory(category, profile)
+  const preferredWorkouts = [
+    getWorkout(resolvedCategory),
+    getWorkout('goal'),
+    ...mockWorkouts.filter(workout => workout.category !== 'gym' && workout.category !== resolvedCategory && workout.category !== 'goal'),
+  ]
+  const unique = new Map<string, Exercise>()
+
+  preferredWorkouts.forEach(workout => {
+    workout.exercises.forEach(exercise => {
+      if (!unique.has(exercise.id)) unique.set(exercise.id, exercise)
+    })
+  })
+
+  return Array.from(unique.values()).slice(0, count)
+}
+
+function buildHomeWorkout(choice: HomeWorkoutCategory, profile: UserProfile): Workout {
+  const duration = getConfiguredWorkoutDuration(profile, 'home')
+  const category = resolveHomeWorkoutCategory(choice, profile)
+  const baseWorkout = getWorkout(category)
+  const exerciseCount = getHomeExerciseCount(duration)
+  const sets = getHomeSetTarget(profile.fitnessLevel, duration)
+  const restSeconds = getHomeRestSeconds(profile.fitnessLevel, duration)
+  const exercises = selectHomeExercises(choice, profile, exerciseCount).map((exercise, index) => ({
+    ...exercise,
+    id: `${category}-${duration}-${exercise.id}-${index}`,
+    restSeconds,
+    sets,
+  }))
+
+  return {
+    ...baseWorkout,
+    id: `${baseWorkout.id}-${duration}-configured`,
+    difficulty: getHomeDifficulty(profile.fitnessLevel, duration),
+    durationMinutes: duration,
+    exercises,
+  }
+}
+
+// ── Time-budget exercise count ────────────────────────────────────────────────
+// Given the selected duration (work time, including rest), work backwards to how
+// many exercises actually fit. Formula per exercise:
+//   sets × (repSeconds + restSeconds) + TRANSITION_SEC
+// Warm-up and stretching are outside this gym work-time budget.
+const TRANSITION_SEC = 30  // time to move between exercises / adjust machine
+const WARMUP_SEC     = 0   // gym duration is work time only, not warm-up/stretch time
+
+function calcGymExerciseCount(
+  duration: GymDuration,
+  sets: number,
+  repSeconds: number,
+  restSeconds: number,
+): number {
+  const budgetSec      = duration * 60 - WARMUP_SEC
+  const perExerciseSec = sets * (repSeconds + restSeconds) + TRANSITION_SEC
+  const count          = Math.floor(budgetSec / perExerciseSec)
+  return Math.max(3, Math.min(15, count))
+}
+
+// Rough preview estimate (before prescription is known) — used only in UI chip
 function getGymExerciseCount(duration: GymDuration) {
   if (duration <= 15) return 3
   if (duration <= 20) return 4
   if (duration <= 30) return 5
   if (duration <= 45) return 6
   if (duration <= 60) return 8
-  if (duration <= 75) return 10
-  return 12
+  if (duration <= 75) return 9
+  return 10
 }
 
 function analyzeGymProgress(progress: WorkoutProgressEntry[], profile: UserProfile): GymProgressSummary {
@@ -279,10 +388,11 @@ function getGymProgressNote(progress: GymProgressSummary, language: 'en' | 'he')
   return `Based on your progress: ${progress.workoutsThisWeek}/${progress.target} workouts this week. The plan stays balanced for steady consistency.`
 }
 
-function getGymPrescription(goal: GymGoal, level: UserProfile['fitnessLevel'], mode: GymProgressMode, duration: GymDuration) {
-  const baseSets = duration <= 20 ? 2 : duration <= 30 ? 3 : duration <= 60 ? 4 : 5
-  const levelAdjustment = level === 'advanced' && duration >= 30 ? 1 : level === 'beginner' ? -1 : 0
-  const progressAdjustment = mode === 'boost' && duration >= 30 ? 1 : mode === 'gentle' ? -1 : 0
+function getGymPrescription(goal: GymGoal, level: UserProfile['fitnessLevel'], mode: GymProgressMode, _duration: GymDuration) {
+  // Sets are constant regardless of duration — more time = more EXERCISES, not more sets.
+  const baseSets = goal === 'strength' ? 4 : 3
+  const levelAdjustment = level === 'advanced' ? 1 : level === 'beginner' ? -1 : 0
+  const progressAdjustment = mode === 'boost' ? 1 : mode === 'gentle' ? -1 : 0
   const sets = Math.min(5, Math.max(2, baseSets + levelAdjustment + progressAdjustment))
 
   if (goal === 'strength') {
@@ -598,8 +708,9 @@ function buildGymWorkout({
   progress: WorkoutProgressEntry[]
 }): Workout {
   const progressSummary = analyzeGymProgress(progress, profile)
-  const exerciseCount = getGymExerciseCount(duration)
   const prescription = getGymPrescription(goal, profile.fitnessLevel, progressSummary.mode, duration)
+  const repSeconds = prescription.reps * 4   // ~4 sec/rep on machines
+  const exerciseCount = calcGymExerciseCount(duration, prescription.sets, repSeconds, prescription.restSeconds)
   const safeFocuses: GymFocus[] = focuses.length > 0 ? focuses : ['full']
   const templates = selectGymExerciseTemplates(safeFocuses, exerciseCount)
   const focusNamesHe = getGymFocusNames(safeFocuses, 'he')
@@ -618,8 +729,8 @@ function buildGymWorkout({
     difficulty: getGymDifficulty(profile.fitnessLevel, progressSummary.mode),
     type: 'strength',
     targetMuscles: safeFocuses,
-    summary: `${progressNoteEn} Strength work time: ${duration} minutes. Warm-up and stretching are not included. Equipment is selected for gym machines, cables, benches, and free weights.`,
-    summaryHe: `${progressNoteHe} זמן עבודה: ${duration} דקות. חימום ומתיחות לא כלולים בזמן הזה. הציוד נבחר לחדר כושר: מכונות, כבלים, ספסלים ומשקולות.`,
+    summary: `${progressNoteEn} Gym work time (including rest): ${duration} minutes. Warm-up and stretching are outside this time. Equipment: gym machines, cables, benches, and free weights.`,
+    summaryHe: `${progressNoteHe} זמן עבודה בחדר כושר (כולל מנוחות): ${duration} דקות. חימום ומתיחות לא נספרים בזמן הזה. ציוד: מכונות, כבלים, ספסלים ומשקולות חופשיות.`,
     exercises: templates.map((template, index) => {
       const coaching = createGymExerciseCoaching(template, goal, profile.fitnessLevel, prescription.restSeconds)
       return {
@@ -628,7 +739,7 @@ function buildGymWorkout({
         name: template.name,
         nameHe: template.nameHe,
         reps: prescription.reps,
-        durationSeconds: prescription.reps * 4, // ~4 sec/rep on machines → triggers exercise countdown timer
+        durationSeconds: repSeconds, // ~4 sec/rep on machines → triggers exercise countdown timer
         restSeconds: prescription.restSeconds,
         sets: prescription.sets,
         instruction: `${template.instruction} Equipment: ${template.equipment}.`,
@@ -642,7 +753,7 @@ function getGymBuilderText(language: 'en' | 'he') {
   if (language === 'he') {
     return {
       duration: 'כמה זמן עבודה בחדר כושר יש לך?',
-      durationNote: 'הזמן כאן הוא זמן האימון עצמו בלבד — חימום ומתיחות לא נספרים.',
+      durationNote: 'זמן העבודה כולל את כל המנוחות בין הסטים. חימום ומתיחות לא נספרים בזמן הזה.',
       empty: 'בחר מטרה, כמה אזורי גוף וזמן אימון. SmartFit יבנה אימון חדר כושר לפי ההתקדמות שלך.',
       equipment: 'ציוד מותאם: מכונות, כבלים, ספסל ומשקולות חופשיות לפי התרגילים שנבחרו.',
       focus: 'על מה לעבוד? אפשר לבחור כמה אזורים',
@@ -659,7 +770,7 @@ function getGymBuilderText(language: 'en' | 'he') {
 
   return {
     duration: 'How much gym work time do you have?',
-    durationNote: 'This is strength work time only - warm-up and stretching are not counted.',
+    durationNote: 'Work time includes all rest periods between sets. Warm-up and stretching are outside this time.',
     empty: 'Choose a goal, multiple body areas, and a duration. SmartFit will build a gym workout based on your progress.',
     equipment: 'Adapted equipment: machines, cables, bench, and free weights according to the selected exercises.',
     focus: 'What should we train? You can select multiple areas',
@@ -688,10 +799,6 @@ function getAgeAdjustedExercise(exercise: Exercise, guidance: AgeGuidance): Exer
       : undefined,
     restSeconds: exercise.restSeconds + guidance.restBonusSeconds,
   }
-}
-
-function getAgeAdjustedDuration(minutes: number, guidance: AgeGuidance) {
-  return Math.max(10, Math.round(minutes * guidance.workoutMultiplier))
 }
 
 function getAgeAdjustedAerobic(workout: AerobicWorkout, guidance: AgeGuidance) {
@@ -843,6 +950,14 @@ function GymWorkoutBuilderPanel({
   const { isHebrew, language, t } = useI18n()
   const text = getGymBuilderText(language)
   const exerciseCount = getGymExerciseCount(gymDuration)
+  // Track which exercises show the dumbbell alternative
+  const [noMachineSet, setNoMachineSet] = useState<Set<string>>(new Set())
+  const toggleNoMachine = (id: string) =>
+    setNoMachineSet(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
 
   return (
     <>
@@ -930,26 +1045,56 @@ function GymWorkoutBuilderPanel({
             <span>{generatedWorkout.exercises.length} {t('exercises')}</span>
           </div>
           <ul className="exercise-list">
-            {generatedWorkout.exercises.map((exercise, index) => (
-              <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
-                <WikiImage exerciseId={exercise.id.replace(/^gym-/, '').replace(/-\d+$/, '')} alt={exercise.name} />
-                <div className="exercise-list-info">
-                  <span className="exercise-list-name">{isHebrew ? exercise.nameHe : exercise.name}</span>
-                  <span className="exercise-list-detail">
-                    {exercise.sets} {t('set')} × {exercise.reps} {t('reps')}
-                    {exercise.durationSeconds ? ` · ⏱ ${exercise.durationSeconds}s` : ''}
-                    {' · '}😴 {exercise.restSeconds}s {t('rest')}
-                  </span>
-                  <span className="exercise-list-note">
-                    {isHebrew ? exercise.instructionHe : exercise.instruction}
-                  </span>
-                  <ExerciseCoachingDetailsView
-                    compact={generatedWorkout.durationMinutes <= 20}
-                    exercise={exercise}
-                  />
-                </div>
-              </li>
-            ))}
+            {generatedWorkout.exercises.map((exercise, index) => {
+              const baseId = exercise.id.replace(/^gym-/, '').replace(/-\d+$/, '')
+              const altData = DUMBBELL_ALTERNATIVES[baseId]
+              const showAlt = noMachineSet.has(exercise.id)
+              return (
+                <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
+                  <ExerciseAnimation exerciseName={exercise.name} isActive={false} />
+                  <div className="exercise-list-info">
+                    <span className="exercise-list-name">
+                      {showAlt && altData
+                        ? (isHebrew ? altData.nameHe : altData.name)
+                        : (isHebrew ? exercise.nameHe : exercise.name)}
+                    </span>
+                    <span className="exercise-list-detail">
+                      {exercise.sets} {t('set')} × {exercise.reps} {t('reps')}
+                      {exercise.durationSeconds ? ` · ⏱ ${exercise.durationSeconds}s` : ''}
+                      {' · '}😴 {exercise.restSeconds}s {t('rest')}
+                    </span>
+                    <span className="exercise-list-note">
+                      {showAlt && altData
+                        ? (isHebrew ? altData.instructionHe : altData.instruction)
+                        : (isHebrew ? exercise.instructionHe : exercise.instruction)}
+                    </span>
+                    {altData && (
+                      <button
+                        type="button"
+                        onClick={() => toggleNoMachine(exercise.id)}
+                        style={{
+                          marginTop: 6, padding: '4px 10px', borderRadius: 16, border: 'none',
+                          cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                          background: showAlt ? '#f59e0b22' : 'rgba(255,255,255,0.08)',
+                          color: showAlt ? '#f59e0b' : 'rgba(255,255,255,0.5)',
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}
+                      >
+                        {showAlt
+                          ? (isHebrew ? '🏋️ חזור למכונה' : '🏋️ Back to machine')
+                          : (isHebrew ? '🚫 אין מכונה — תרגיל חלופי' : '🚫 No machine — show alternative')}
+                      </button>
+                    )}
+                    {!showAlt && (
+                      <ExerciseCoachingDetailsView
+                        compact={generatedWorkout.durationMinutes <= 20}
+                        exercise={exercise}
+                      />
+                    )}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
           <button className="btn-primary btn-start" onClick={onStartWorkout}>
             {text.start}
@@ -1000,11 +1145,11 @@ function SelectWorkout({
   const { t, isHebrew, language } = useI18n()
   const { profile } = useUser()
   const navigate = useNavigate()
-  const todayGymDay = (profile.gymDays ?? []).includes(WEEK_DAYS[new Date().getDay()])
+  const [showChangeGrid, setShowChangeGrid] = useState(false)
   const profileGoals = getProfileGoals(profile)
   const profileLocations = getProfileWorkoutTypes(profile)
   const ageGuidance = getAgeGuidance(profile)
-  const adjustedWorkoutDuration = getAgeAdjustedDuration(selectedWorkout.durationMinutes, ageGuidance)
+  const adjustedWorkoutDuration = selectedWorkout.durationMinutes
   const adjustedExercises = selectedWorkout.exercises.map(exercise => getAgeAdjustedExercise(exercise, ageGuidance))
   const adjustedAerobic = getAgeAdjustedAerobic(selectedAerobic, ageGuidance)
   const heartRatePreview = getHeartRateSummary(language).text
@@ -1017,94 +1162,30 @@ function SelectWorkout({
   return (
     <div className="workout-preview">
       <div className="workout-preview-header">
-        <h1 className="workout-title">{t('chooseWorkout')}</h1>
-        <p className="workout-picker-sub">{t('chooseWorkoutSub')}</p>
+        <h1 className="workout-title">{isHebrew ? 'האימון שלך היום' : "Today's Workout"}</h1>
       </div>
 
-      <button
-        className="training-plan-banner"
-        onClick={() => navigate('/training-plan')}
-      >
-        <span className="training-plan-banner-icon">📋</span>
-        <div className="training-plan-banner-text">
-          <strong>{isHebrew ? 'מערכת אימונים' : 'Training System'}</strong>
-          <small>{isHebrew ? 'הצג וערוך את תוכנית השבוע שלך' : 'View & edit your weekly plan'}</small>
-        </div>
-        <span className="training-plan-banner-arrow">›</span>
-      </button>
-
-      {todayGymDay && generatedGymWorkout && (
-        <div className="gym-today-banner">
-          <span className="gym-today-icon">🏋️</span>
-          <div className="gym-today-text">
-            <strong>{isHebrew ? 'היום יום חדר כושר!' : "Today is your gym day!"}</strong>
-            <small>
-              {isHebrew
-                ? `${generatedGymWorkout.exercises.length} תרגילים · ${generatedGymWorkout.durationMinutes} דקות · טיימר + מנוחה`
-                : `${generatedGymWorkout.exercises.length} exercises · ${generatedGymWorkout.durationMinutes} min · timer + rest`}
-            </small>
-          </div>
-        </div>
-      )}
-
-      <div className="workout-choice-grid">
-        {(['goal', 'abs', 'arms', 'legs', 'gym', 'aerobic'] as WorkoutChoice[]).map(choice => (
-          <button
-            key={choice}
-            className={`workout-choice-card${selectedChoice === choice ? ' selected' : ''}`}
-            onClick={() => onSelectChoice(choice)}
-          >
-            <span>{t(categoryLabelKeys[choice])}</span>
-            {choice === 'goal' && <small>{t('goals')}: {profileGoals.map(goal => t(goalLabelKeys[goal])).join(', ')}</small>}
-          </button>
-        ))}
-      </div>
-
-      <p className="workout-picker-sub">
-        {t('locations')}: {profileLocations.map(location => t(locationLabelKeys[location])).join(', ')}
-      </p>
-      <p className="age-note">
-        <strong>{t('ageAdaptation')}: {t(ageGuidance.group)}</strong>
-        <span>{t('ageWorkoutNote')}</span>
-      </p>
-
+      {/* ── Today's workout card — always first ── */}
       {selectedChoice === 'aerobic' ? (
-        <>
-          <h2 className="section-title">{t('chooseAerobic')}</h2>
-          <p className="workout-picker-sub">{t('chooseAerobicSub')}</p>
-          <div className="aerobic-choice-list">
-            {mockAerobicWorkouts.map((workout, index) => (
-              <button
-                key={`aerobic-choice-${workout.id}-${index}`}
-                className={`aerobic-choice-card${selectedAerobic.id === workout.id ? ' selected' : ''}`}
-                onClick={() => onSelectAerobic(workout)}
-              >
-                <span>{isHebrew ? workout.nameHe : workout.name}</span>
-                <small>{getAgeAdjustedAerobic(workout, ageGuidance).durationMinutes} min - {getAgeAdjustedAerobic(workout, ageGuidance).baseDistanceKm} {t('km')}</small>
-              </button>
-            ))}
-          </div>
-
-          <div className="workout-card-big">
-            <div className="workout-card-top">
-              <div>
-                <p className="workout-card-label">{t('selectedWorkout')}</p>
-                <h2 className="workout-card-name">{aerobicName}</h2>
-              </div>
-              <span className={`difficulty-badge ${selectedAerobic.difficulty}`}>{selectedAerobic.difficulty}</span>
+        <div className="workout-card-big">
+          <div className="workout-card-top">
+            <div>
+              <p className="workout-card-label">{isHebrew ? 'אימון היום' : "Today's workout"}</p>
+              <h2 className="workout-card-name">{aerobicName}</h2>
             </div>
-            <p className="exercise-focus-instruction">{aerobicSummary}</p>
-            <div className="aerobic-stat-grid preview">
-              <div><span>{t('distance')}</span><strong>{adjustedAerobic.baseDistanceKm} {t('km')}</strong></div>
-              <div><span>{t('pace')}</span><strong>{selectedAerobic.avgPace}</strong></div>
-              <div><span>{t('calories')}</span><strong>{adjustedAerobic.baseCalories} {t('kcal')}</strong></div>
-              <div><span>{t('heartRate')}</span><strong>{heartRatePreview}</strong></div>
-            </div>
-            <button className="btn-primary btn-start" onClick={onStartAerobic}>
-              {t('startAerobic')}
-            </button>
+            <span className={`difficulty-badge ${selectedAerobic.difficulty}`}>{selectedAerobic.difficulty}</span>
           </div>
-        </>
+          <p className="exercise-focus-instruction">{aerobicSummary}</p>
+          <div className="aerobic-stat-grid preview">
+            <div><span>{t('distance')}</span><strong>{adjustedAerobic.baseDistanceKm} {t('km')}</strong></div>
+            <div><span>{t('pace')}</span><strong>{selectedAerobic.avgPace}</strong></div>
+            <div><span>{t('calories')}</span><strong>{adjustedAerobic.baseCalories} {t('kcal')}</strong></div>
+            <div><span>{t('heartRate')}</span><strong>{heartRatePreview}</strong></div>
+          </div>
+          <button className="btn-primary btn-start" onClick={onStartAerobic}>
+            {t('startAerobic')}
+          </button>
+        </div>
       ) : selectedChoice === 'gym' ? (
         <GymWorkoutBuilderPanel
           generatedWorkout={generatedGymWorkout}
@@ -1122,7 +1203,7 @@ function SelectWorkout({
         <div className="workout-card-big">
           <div className="workout-card-top">
             <div>
-              <p className="workout-card-label">{t('selectedWorkout')}</p>
+              <p className="workout-card-label">{isHebrew ? 'אימון היום' : "Today's workout"}</p>
               <h2 className="workout-card-name">{workoutName}</h2>
             </div>
             <span className={`difficulty-badge ${selectedWorkout.difficulty}`}>{selectedWorkout.difficulty}</span>
@@ -1153,6 +1234,69 @@ function SelectWorkout({
           </button>
         </div>
       )}
+
+      {/* ── Change workout toggle ── */}
+      <button
+        className="training-plan-banner"
+        onClick={() => setShowChangeGrid(v => !v)}
+        style={{ marginTop: 4 }}
+      >
+        <span className="training-plan-banner-icon">🔄</span>
+        <div className="training-plan-banner-text">
+          <strong>{isHebrew ? 'שנה אימון' : 'Change workout'}</strong>
+          <small>{isHebrew ? 'בחר סוג אימון אחר להיום' : 'Pick a different workout for today'}</small>
+        </div>
+        <span className="training-plan-banner-arrow">{showChangeGrid ? '▲' : '▼'}</span>
+      </button>
+
+      {showChangeGrid && (
+        <>
+          <div className="workout-choice-grid">
+            {(['goal', 'abs', 'arms', 'legs', 'gym', 'aerobic'] as WorkoutChoice[]).map(choice => (
+              <button
+                key={choice}
+                className={`workout-choice-card${selectedChoice === choice ? ' selected' : ''}`}
+                onClick={() => { onSelectChoice(choice); setShowChangeGrid(false) }}
+              >
+                <span>{t(categoryLabelKeys[choice])}</span>
+                {choice === 'goal' && <small>{t('goals')}: {profileGoals.map(goal => t(goalLabelKeys[goal])).join(', ')}</small>}
+              </button>
+            ))}
+          </div>
+          <p className="workout-picker-sub">
+            {t('locations')}: {profileLocations.map(location => t(locationLabelKeys[location])).join(', ')}
+          </p>
+          <p className="age-note">
+            <strong>{t('ageAdaptation')}: {t(ageGuidance.group)}</strong>
+        <span>{t('ageWorkoutNote')}</span>
+          </p>
+
+          {selectedChoice === 'aerobic' && (
+            <div className="aerobic-choice-list" style={{ marginTop: 12 }}>
+              {mockAerobicWorkouts.map((workout, index) => (
+                <button
+                  key={`aerobic-choice-${workout.id}-${index}`}
+                  className={`aerobic-choice-card${selectedAerobic.id === workout.id ? ' selected' : ''}`}
+                  onClick={() => { onSelectAerobic(workout); setShowChangeGrid(false) }}
+                >
+                  <span>{isHebrew ? workout.nameHe : workout.name}</span>
+                  <small>{getAgeAdjustedAerobic(workout, ageGuidance).durationMinutes} min - {getAgeAdjustedAerobic(workout, ageGuidance).baseDistanceKm} {t('km')}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Extra links */}
+      <button className="training-plan-banner" onClick={() => navigate('/social?tab=joint')} style={{ marginTop: 4 }}>
+        <span className="training-plan-banner-icon">👥</span>
+        <div className="training-plan-banner-text">
+          <strong>{isHebrew ? 'אימון משותף עם חברים' : 'Co-workout with friends'}</strong>
+          <small>{isHebrew ? 'פתח לובי וסיימו יחד' : 'Open a lobby and finish together'}</small>
+        </div>
+        <span className="training-plan-banner-arrow">›</span>
+      </button>
     </div>
   )
 }
@@ -1349,11 +1493,11 @@ export default function WorkoutPage() {
   const { profile } = useUser()
   const ageGuidance = getAgeGuidance(profile)
   const [selectedChoice, setSelectedChoice] = useState<WorkoutChoice>(() => searchParams.get('mode') === 'gym' ? 'gym' : 'goal')
-  const [selectedWorkout, setSelectedWorkout] = useState<Workout>(getWorkout('goal'))
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout>(() => buildHomeWorkout('goal', profile))
   const [selectedAerobic, setSelectedAerobic] = useState<AerobicWorkout>(mockAerobicWorkouts[0])
   const [gymGoal, setGymGoal] = useState<GymGoal>(() => getDefaultGymGoal(profile))
   const [gymFocuses, setGymFocuses] = useState<GymFocus[]>(() => getDefaultGymFocuses(profile))
-  const [gymDuration, setGymDuration] = useState<GymDuration>(() => normalizeGymDuration(profile.workout_time ?? profile.workoutDuration))
+  const [gymDuration, setGymDuration] = useState<GymDuration>(() => getConfiguredGymDuration(profile))
   const [generatedGymWorkout, setGeneratedGymWorkout] = useState<Workout | null>(null)
   const [phase, setPhase] = useState<Phase>('select')
   const [countdown, setCountdown] = useState(3)
@@ -1366,26 +1510,52 @@ export default function WorkoutPage() {
   // Live heart rate from BLE wearable
   const [liveHR, setLiveHR] = useState<number>(() => getCurrentHR())
   useEffect(() => {
-    if (!isHRConnected()) return
+    // Always subscribe — works even if watch connects after page load
     const unsub = onHeartRate(bpm => setLiveHR(bpm))
     return unsub
   }, [])
 
-  // Auto-generate gym workout when today is a scheduled gym day
+  // Map weekly plan focus → workout choice
+  const focusToChoice = (focus: ScheduleFocus): WorkoutChoice | null => {
+    if (focus === 'rest')    return null        // rest day — don't auto-select
+    if (focus === 'aerobic') return 'aerobic'
+    if (focus === 'abs')     return 'abs'
+    if (focus === 'arms')    return 'arms'
+    if (focus === 'legs')    return 'legs'
+    return 'goal'  // 'goal' catch-all
+  }
+
+  // Always pre-generate a gym workout on mount so the card is immediately available.
+  // Auto-switch selected choice based on today's weekly plan entry.
   useEffect(() => {
+    const auto = buildGymWorkout({
+      duration: gymDuration,
+      focuses: gymFocuses,
+      goal: gymGoal,
+      profile,
+      progress: getWorkoutProgress(),
+    })
+    setGeneratedGymWorkout(auto)
+
     const todayIndex = new Date().getDay() // 0=Sun … 6=Sat
     const todayKey = WEEK_DAYS[todayIndex]
-    if ((profile.gymDays ?? []).includes(todayKey)) {
-      const auto = buildGymWorkout({
-        duration: gymDuration,
-        focuses: gymFocuses,
-        goal: gymGoal,
-        profile,
-        progress: getWorkoutProgress(),
-      })
-      setGeneratedGymWorkout(auto)
+    const isGymDay = (profile.gymDays ?? []).includes(todayKey)
+
+    if (isGymDay) {
+      // Gym day takes priority
       setSelectedWorkout(auto)
       setSelectedChoice('gym')
+    } else {
+      // Use the weekly plan focus
+      const weeklyPlan = getProfileWeeklyPlan(profile)
+      const todayFocus = weeklyPlan[todayKey]
+      const choice = focusToChoice(todayFocus)
+      if (choice && choice !== 'aerobic' && choice !== 'gym') {
+        setSelectedWorkout(buildHomeWorkout(choice, profile))
+        setSelectedChoice(choice)
+      } else if (choice === 'aerobic') {
+        setSelectedChoice('aerobic')
+      }
     }
   }, []) // intentionally run only on mount
 
@@ -1411,7 +1581,7 @@ export default function WorkoutPage() {
     if (choice === 'gym') {
       if (generatedGymWorkout) setSelectedWorkout(generatedGymWorkout)
     } else if (choice !== 'aerobic') {
-      setSelectedWorkout(getWorkout(choice))
+      setSelectedWorkout(buildHomeWorkout(choice, profile))
     }
     resetWorkoutState()
   }
@@ -1457,6 +1627,31 @@ export default function WorkoutPage() {
 
   const finishWorkout = useCallback((cardioSummary?: CardioSummary) => {
     const completionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const completedDuration = cardioSummary
+      ? cardioSummary.durationMinutes
+      : selectedWorkout.durationMinutes
+    const sharedWorkout = cardioSummary
+      ? {
+          caloriesEstimate: cardioSummary.calories,
+          durationMin: cardioSummary.durationMinutes,
+          title: cardioSummary.type,
+          titleHe: cardioSummary.type,
+          type: 'cardio',
+        }
+      : {
+          caloriesEstimate: Math.round(completedDuration * (selectedChoice === 'gym' ? 7 : 6)),
+          durationMin: completedDuration,
+          title: selectedWorkout.name,
+          titleHe: selectedWorkout.nameHe,
+          type: selectedChoice === 'gym'
+            ? 'gym'
+            : selectedWorkout.type === 'cardio'
+            ? 'cardio'
+            : selectedWorkout.type === 'flexibility'
+            ? 'mobility'
+            : 'strength',
+          workoutId: selectedWorkout.id,
+        }
     if (cardioSummary) {
       saveCardioSession({
         calories: cardioSummary.calories,
@@ -1466,15 +1661,14 @@ export default function WorkoutPage() {
       })
     } else {
       saveCompletedWorkout({
-        duration: selectedChoice === 'gym'
-          ? selectedWorkout.durationMinutes
-          : getAgeAdjustedDuration(selectedWorkout.durationMinutes, ageGuidance),
+        duration: completedDuration,
         feeling: lastFeedback ?? undefined,
+        id: completionId,
         type: selectedChoice,
       })
     }
-    navigate('/workout/summary', { state: { completionId } })
-  }, [ageGuidance, lastFeedback, navigate, selectedChoice, selectedWorkout.durationMinutes])
+    navigate('/workout/summary', { state: { completionId, sharedWorkout } })
+  }, [lastFeedback, navigate, selectedChoice, selectedWorkout])
 
   const goToNext = useCallback(() => {
     if (!currentEx) {
@@ -1629,13 +1823,7 @@ export default function WorkoutPage() {
       <p className="exercise-counter">{t('exercise')} {exIndex + 1} {t('of')} {total}</p>
 
       <div className="exercise-focus-card">
-        {selectedChoice === 'gym'
-          ? <WikiImage
-              exerciseId={currentEx.id.replace(/^gym-/, '').replace(/-\d+$/, '')}
-              alt={currentEx.name}
-            />
-          : <div className="exercise-image-placeholder">{t(categoryLabelKeys[selectedChoice])}</div>
-        }
+        <ExerciseAnimation exerciseName={currentEx.name} isActive={true} />
         <h2 className="exercise-focus-name">{isHebrew ? currentEx.nameHe : currentEx.name}</h2>
         <p className="exercise-focus-sets">
           {t('set')} {setIndex + 1} {t('of')} {currentEx.sets}
