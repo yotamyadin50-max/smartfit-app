@@ -1113,7 +1113,10 @@ function GymWorkoutBuilderPanel({
             const showAlt = noMachineSet.has(exercise.id)
             return (
               <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
-                <ExerciseAnimation exerciseName={exercise.name} />
+                <div className="exercise-list-visual">
+                  <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
+                  <span className="exercise-num">{index + 1}</span>
+                </div>
                 <div className="exercise-list-info">
                   <span className="exercise-list-name">
                     {showAlt && altData ? (isHebrew ? altData.nameHe : altData.name) : (isHebrew ? exercise.nameHe : exercise.name)}
@@ -1263,7 +1266,10 @@ function SelectWorkout({
           <ul className="exercise-list">
             {adjustedExercises.map((exercise, index) => (
               <li key={`workout-exercise-${selectedWorkout.id}-${exercise.id}-${index}`} className="exercise-list-item">
-                <span className="exercise-num">{index + 1}</span>
+                <div className="exercise-list-visual">
+                  <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
+                  <span className="exercise-num">{index + 1}</span>
+                </div>
                 <div className="exercise-list-info">
                   <span className="exercise-list-name">{isHebrew ? exercise.nameHe : exercise.name}</span>
                   <span className="exercise-list-detail">

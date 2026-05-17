@@ -196,6 +196,9 @@ const MUSCLE_SVG_IDS: Record<MuscleId, string[]> = {
 const CSS = `
 .ex-anim-wrap { display:flex; flex-direction:column; align-items:center; gap:0; }
 .ex-anim-svg { width:130px; height:auto; display:block; filter:drop-shadow(0 0 10px rgba(130,50,220,0.25)); }
+.ex-anim-wrap.compact { width:58px; min-width:58px; flex-shrink:0; }
+.ex-anim-wrap.compact .ex-anim-svg { width:52px; }
+.ex-anim-wrap.compact .ex-anim-muscles { display:none; }
 .muscle { fill:rgba(255,255,255,0.06); }
 .muscle.active { fill:rgba(239,68,68,0.6); animation:muscle-pulse 1.2s ease-in-out infinite alternate; }
 @keyframes muscle-pulse { from{fill:rgba(239,68,68,0.45)} to{fill:rgba(255,90,70,0.78)} }
@@ -455,7 +458,15 @@ const CSS = `
 .ex-muscle-tag { background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#fca5a5; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; letter-spacing:0.3px; }
 `
 
-export function ExerciseAnimation({ exerciseName }: { exerciseName: string }) {
+export function ExerciseAnimation({
+  compact = false,
+  exerciseName,
+  hideMuscles = false,
+}: {
+  compact?: boolean
+  exerciseName: string
+  hideMuscles?: boolean
+}) {
   const { isHebrew } = useI18n()
   const def = useMemo(() => getExerciseDef(exerciseName), [exerciseName])
 
@@ -468,7 +479,7 @@ export function ExerciseAnimation({ exerciseName }: { exerciseName: string }) {
   const m = (id: string) => `muscle${activeMuscleIds.has(id) ? ' active' : ''}`
 
   return (
-    <div className={`ex-anim-wrap anim-${def.anim}`}>
+    <div className={`ex-anim-wrap${compact ? ' compact' : ''} anim-${def.anim}`}>
       <style>{CSS}</style>
       <svg viewBox="0 0 120 220" className="ex-anim-svg" xmlns="http://www.w3.org/2000/svg">
         {/* HEAD */}
@@ -550,13 +561,15 @@ export function ExerciseAnimation({ exerciseName }: { exerciseName: string }) {
         <path id="m-calf-r"     className={m('m-calf-r')}     d="M80,174 L90,174 L92,200 L82,202 Z" />
       </svg>
 
-      <div className="ex-anim-muscles">
-        {def.muscles.map(muscle => (
-          <span key={muscle} className="ex-muscle-tag">
-            {isHebrew ? MUSCLE_LABEL[muscle][1] : MUSCLE_LABEL[muscle][0]}
-          </span>
-        ))}
-      </div>
+      {!hideMuscles && (
+        <div className="ex-anim-muscles">
+          {def.muscles.map(muscle => (
+            <span key={muscle} className="ex-muscle-tag">
+              {isHebrew ? MUSCLE_LABEL[muscle][1] : MUSCLE_LABEL[muscle][0]}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
