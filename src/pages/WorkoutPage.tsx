@@ -950,8 +950,8 @@ function GymWorkoutBuilderPanel({
   const { isHebrew, language, t } = useI18n()
   const text = getGymBuilderText(language)
   const exerciseCount = getGymExerciseCount(gymDuration)
-  // Track which exercises show the dumbbell alternative
   const [noMachineSet, setNoMachineSet] = useState<Set<string>>(new Set())
+  const [showSettings, setShowSettings] = useState(!generatedWorkout)
   const toggleNoMachine = (id: string) =>
     setNoMachineSet(prev => {
       const next = new Set(prev)
@@ -959,9 +959,8 @@ function GymWorkoutBuilderPanel({
       return next
     })
 
-  return (
-    <>
-      <div className="workout-card-big">
+  const settingsPanel = (
+    <div className="workout-card-big">
       <div className="workout-card-top">
         <div>
           <p className="workout-card-label">{t('gymWorkout')}</p>
@@ -975,12 +974,7 @@ function GymWorkoutBuilderPanel({
         <p className="form-label">{text.goal}</p>
         <div className="option-grid col-3">
           {GYM_GOAL_OPTIONS.map(option => (
-            <button
-              key={option.key}
-              className={`option-card compact${gymGoal === option.key ? ' selected' : ''}`}
-              onClick={() => onGoalChange(option.key)}
-              type="button"
-            >
+            <button key={option.key} className={`option-card compact${gymGoal === option.key ? ' selected' : ''}`} onClick={() => onGoalChange(option.key)} type="button">
               <span className="option-label">{isHebrew ? option.labelHe : option.label}</span>
             </button>
           ))}
@@ -991,12 +985,7 @@ function GymWorkoutBuilderPanel({
         <p className="form-label">{text.focus}</p>
         <div className="option-grid col-3">
           {GYM_FOCUS_OPTIONS.map(option => (
-            <button
-              key={option.key}
-              className={`option-card compact${gymFocuses.includes(option.key) ? ' selected' : ''}`}
-              onClick={() => onToggleFocus(option.key)}
-              type="button"
-            >
+            <button key={option.key} className={`option-card compact${gymFocuses.includes(option.key) ? ' selected' : ''}`} onClick={() => onToggleFocus(option.key)} type="button">
               <span className="option-label">{isHebrew ? option.labelHe : option.label}</span>
             </button>
           ))}
@@ -1007,12 +996,7 @@ function GymWorkoutBuilderPanel({
         <p className="form-label">{text.duration}</p>
         <div className="option-grid col-4">
           {GYM_DURATIONS.map(duration => (
-            <button
-              key={duration}
-              className={`option-card compact${gymDuration === duration ? ' selected' : ''}`}
-              onClick={() => onDurationChange(duration)}
-              type="button"
-            >
+            <button key={duration} className={`option-card compact${gymDuration === duration ? ' selected' : ''}`} onClick={() => onDurationChange(duration)} type="button">
               <span className="option-label">{duration} {t('minutes')}</span>
             </button>
           ))}
@@ -1024,85 +1008,82 @@ function GymWorkoutBuilderPanel({
         <span>{getGymProgressNote(gymProgress, language)}</span>
       </p>
 
-        <button className="btn-primary btn-start" onClick={onGenerateWorkout}>
-          {text.generate}
-        </button>
+      <button className="btn-primary btn-start" onClick={() => { onGenerateWorkout(); setShowSettings(false) }}>
+        {text.generate}
+      </button>
+    </div>
+  )
+
+  if (!generatedWorkout) {
+    return (
+      <>
+        {settingsPanel}
+        <p className="workout-picker-sub">{text.empty}</p>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {/* ── Generated workout first ── */}
+      <div className="workout-card-big">
+        <div className="workout-card-top">
+          <div>
+            <p className="workout-card-label">{text.selected}</p>
+            <h2 className="workout-card-name">{isHebrew ? generatedWorkout.nameHe : generatedWorkout.name}</h2>
+          </div>
+          <span className={`difficulty-badge ${generatedWorkout.difficulty}`}>{generatedWorkout.difficulty}</span>
+        </div>
+        <p className="exercise-focus-instruction">{isHebrew ? generatedWorkout.summaryHe : generatedWorkout.summary}</p>
+        <p className="exercise-focus-instruction">{text.equipment}</p>
+        <div className="workout-card-meta">
+          <span>{text.totalTime}: {generatedWorkout.durationMinutes} {t('minutes')}</span>
+          <span>{generatedWorkout.exercises.length} {t('exercises')}</span>
+        </div>
+        <ul className="exercise-list">
+          {generatedWorkout.exercises.map((exercise, index) => {
+            const baseId = exercise.id.replace(/^gym-/, '').replace(/-\d+$/, '')
+            const altData = DUMBBELL_ALTERNATIVES[baseId]
+            const showAlt = noMachineSet.has(exercise.id)
+            return (
+              <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
+                <ExerciseAnimation exerciseName={exercise.name} />
+                <div className="exercise-list-info">
+                  <span className="exercise-list-name">
+                    {showAlt && altData ? (isHebrew ? altData.nameHe : altData.name) : (isHebrew ? exercise.nameHe : exercise.name)}
+                  </span>
+                  <span className="exercise-list-detail">
+                    {exercise.sets} {t('set')} × {exercise.reps} {t('reps')}
+                    {exercise.durationSeconds ? ` · ⏱ ${exercise.durationSeconds}s` : ''}
+                    {' · '}😴 {exercise.restSeconds}s {t('rest')}
+                  </span>
+                  <span className="exercise-list-note">
+                    {showAlt && altData ? (isHebrew ? altData.instructionHe : altData.instruction) : (isHebrew ? exercise.instructionHe : exercise.instruction)}
+                  </span>
+                  {altData && (
+                    <button type="button" onClick={() => toggleNoMachine(exercise.id)} style={{ marginTop: 6, padding: '4px 10px', borderRadius: 16, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12, background: showAlt ? '#f59e0b22' : 'rgba(255,255,255,0.08)', color: showAlt ? '#f59e0b' : 'rgba(255,255,255,0.5)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {showAlt ? (isHebrew ? '🏋️ חזור למכונה' : '🏋️ Back to machine') : (isHebrew ? '🚫 אין מכונה — תרגיל חלופי' : '🚫 No machine — show alternative')}
+                    </button>
+                  )}
+                  {!showAlt && <ExerciseCoachingDetailsView compact={generatedWorkout.durationMinutes <= 20} exercise={exercise} />}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+        <button className="btn-primary btn-start" onClick={onStartWorkout}>{text.start}</button>
       </div>
 
-      {generatedWorkout ? (
-        <div className="workout-card-big">
-          <div className="workout-card-top">
-            <div>
-              <p className="workout-card-label">{text.selected}</p>
-              <h2 className="workout-card-name">{isHebrew ? generatedWorkout.nameHe : generatedWorkout.name}</h2>
-            </div>
-            <span className={`difficulty-badge ${generatedWorkout.difficulty}`}>{generatedWorkout.difficulty}</span>
-          </div>
-          <p className="exercise-focus-instruction">{isHebrew ? generatedWorkout.summaryHe : generatedWorkout.summary}</p>
-          <p className="exercise-focus-instruction">{text.equipment}</p>
-          <div className="workout-card-meta">
-            <span>{text.totalTime}: {generatedWorkout.durationMinutes} {t('minutes')}</span>
-            <span>{generatedWorkout.exercises.length} {t('exercises')}</span>
-          </div>
-          <ul className="exercise-list">
-            {generatedWorkout.exercises.map((exercise, index) => {
-              const baseId = exercise.id.replace(/^gym-/, '').replace(/-\d+$/, '')
-              const altData = DUMBBELL_ALTERNATIVES[baseId]
-              const showAlt = noMachineSet.has(exercise.id)
-              return (
-                <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
-                  <ExerciseAnimation exerciseName={exercise.name} isActive={false} />
-                  <div className="exercise-list-info">
-                    <span className="exercise-list-name">
-                      {showAlt && altData
-                        ? (isHebrew ? altData.nameHe : altData.name)
-                        : (isHebrew ? exercise.nameHe : exercise.name)}
-                    </span>
-                    <span className="exercise-list-detail">
-                      {exercise.sets} {t('set')} × {exercise.reps} {t('reps')}
-                      {exercise.durationSeconds ? ` · ⏱ ${exercise.durationSeconds}s` : ''}
-                      {' · '}😴 {exercise.restSeconds}s {t('rest')}
-                    </span>
-                    <span className="exercise-list-note">
-                      {showAlt && altData
-                        ? (isHebrew ? altData.instructionHe : altData.instruction)
-                        : (isHebrew ? exercise.instructionHe : exercise.instruction)}
-                    </span>
-                    {altData && (
-                      <button
-                        type="button"
-                        onClick={() => toggleNoMachine(exercise.id)}
-                        style={{
-                          marginTop: 6, padding: '4px 10px', borderRadius: 16, border: 'none',
-                          cursor: 'pointer', fontWeight: 700, fontSize: 12,
-                          background: showAlt ? '#f59e0b22' : 'rgba(255,255,255,0.08)',
-                          color: showAlt ? '#f59e0b' : 'rgba(255,255,255,0.5)',
-                          display: 'inline-flex', alignItems: 'center', gap: 4,
-                        }}
-                      >
-                        {showAlt
-                          ? (isHebrew ? '🏋️ חזור למכונה' : '🏋️ Back to machine')
-                          : (isHebrew ? '🚫 אין מכונה — תרגיל חלופי' : '🚫 No machine — show alternative')}
-                      </button>
-                    )}
-                    {!showAlt && (
-                      <ExerciseCoachingDetailsView
-                        compact={generatedWorkout.durationMinutes <= 20}
-                        exercise={exercise}
-                      />
-                    )}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-          <button className="btn-primary btn-start" onClick={onStartWorkout}>
-            {text.start}
-          </button>
+      {/* ── Settings toggle below workout ── */}
+      <button className="training-plan-banner" onClick={() => setShowSettings(v => !v)} style={{ marginTop: 4 }}>
+        <span className="training-plan-banner-icon">⚙️</span>
+        <div className="training-plan-banner-text">
+          <strong>{isHebrew ? 'שנה הגדרות האימון' : 'Change workout settings'}</strong>
+          <small>{isHebrew ? 'מטרה, אזורי גוף, משך זמן' : 'Goal, body areas, duration'}</small>
         </div>
-      ) : (
-        <p className="workout-picker-sub">{text.empty}</p>
-      )}
+        <span className="training-plan-banner-arrow">{showSettings ? '▲' : '▼'}</span>
+      </button>
+      {showSettings && settingsPanel}
     </>
   )
 }
@@ -1823,7 +1804,7 @@ export default function WorkoutPage() {
       <p className="exercise-counter">{t('exercise')} {exIndex + 1} {t('of')} {total}</p>
 
       <div className="exercise-focus-card">
-        <ExerciseAnimation exerciseName={currentEx.name} isActive={true} />
+        <ExerciseAnimation exerciseName={currentEx.name} />
         <h2 className="exercise-focus-name">{isHebrew ? currentEx.nameHe : currentEx.name}</h2>
         <p className="exercise-focus-sets">
           {t('set')} {setIndex + 1} {t('of')} {currentEx.sets}

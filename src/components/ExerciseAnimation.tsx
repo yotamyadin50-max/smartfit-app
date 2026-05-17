@@ -409,13 +409,7 @@ const CSS = `
 .ex-muscle-tag { background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#fca5a5; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; letter-spacing:0.3px; }
 `
 
-export function ExerciseAnimation({
-  exerciseName,
-  isActive = true,
-}: {
-  exerciseName: string
-  isActive?: boolean
-}) {
+export function ExerciseAnimation({ exerciseName }: { exerciseName: string }) {
   const { isHebrew } = useI18n()
   const def = useMemo(() => getExerciseDef(exerciseName), [exerciseName])
 
@@ -428,7 +422,7 @@ export function ExerciseAnimation({
   const m = (id: string) => `muscle${activeMuscleIds.has(id) ? ' active' : ''}`
 
   return (
-    <div className={`ex-anim-wrap anim-${isActive ? def.anim : 'standing'}`}>
+    <div className={`ex-anim-wrap anim-${def.anim}`}>
       <style>{CSS}</style>
       <svg viewBox="0 0 120 220" className="ex-anim-svg" xmlns="http://www.w3.org/2000/svg">
         {/* HEAD */}
