@@ -56,6 +56,8 @@ const categoryLabelKeys: Record<WorkoutChoice, string> = {
   abs: 'absWorkout',
   arms: 'armsWorkout',
   legs: 'legsWorkout',
+  back: 'backWorkout',
+  chest: 'chestWorkout',
   gym: 'gymWorkout',
   aerobic: 'aerobicWorkout',
 }
@@ -106,9 +108,31 @@ const GYM_EXERCISES: GymExerciseTemplate[] = [
   { id: 'preacher-curl', focus: 'arms', name: 'Preacher Curl Machine', nameHe: 'כפיפת מרפקים במכונת פריצ׳ר', equipment: 'Preacher curl machine', equipmentHe: 'מכונת פריצ׳ר', instruction: 'Keep the upper arms on the pad and curl through a smooth range.', instructionHe: 'שמור זרועות על הכרית וכפוף בטווח חלק.' },
   { id: 'hammer-curl', focus: 'arms', name: 'Dumbbell Hammer Curl', nameHe: 'כפיפת פטיש עם משקולות', equipment: 'Dumbbells', equipmentHe: 'משקולות יד', instruction: 'Curl with palms facing each other and avoid swinging the torso.', instructionHe: 'כפוף כשהכפות פונות זו לזו והימנע מתנופת גוף.' },
 
-  { id: 'cable-crunch', focus: 'abs', name: 'Cable Crunch', nameHe: 'כפיפות בטן בכבל', equipment: 'Cable rope', equipmentHe: 'חבל בכבל', instruction: 'Round the upper back gently toward the hips and avoid pulling with the arms.', instructionHe: 'עגל את הגב העליון בעדינות לכיוון האגן ואל תמשוך עם הידיים.' },
-  { id: 'hanging-knee-raise', focus: 'abs', name: 'Hanging Knee Raise', nameHe: 'הרמת ברכיים בתלייה', equipment: 'Captain chair or pull-up station', equipmentHe: 'כיסא קפטן או מתקן מתח', instruction: 'Lift knees with control and stop if the lower back feels uncomfortable.', instructionHe: 'הרם ברכיים בשליטה ועצור אם הגב התחתון לא נוח.' },
-  { id: 'torso-rotation', focus: 'abs', name: 'Torso Rotation Machine', nameHe: 'מכונת רוטציה לבטן', equipment: 'Torso rotation machine', equipmentHe: 'מכונת רוטציה', instruction: 'Use a light load and rotate through a controlled, pain-free range.', instructionHe: 'בחר משקל קל וסובב בטווח נשלט וללא כאב.' },
+  { id: 'cable-crunch',        focus: 'abs',       name: 'Cable Crunch',              nameHe: 'כפיפות בטן בכבל',          equipment: 'Cable rope',                  equipmentHe: 'חבל בכבל',                   instruction: 'Round the upper back gently toward the hips and avoid pulling with the arms.', instructionHe: 'עגל את הגב העליון בעדינות לכיוון האגן ואל תמשוך עם הידיים.' },
+  { id: 'hanging-knee-raise',  focus: 'abs',       name: 'Hanging Knee Raise',        nameHe: 'הרמת ברכיים בתלייה',        equipment: 'Captain chair or pull-up bar', equipmentHe: 'כיסא קפטן או מוט מתח',     instruction: 'Lift knees with control and stop if the lower back feels uncomfortable.', instructionHe: 'הרם ברכיים בשליטה ועצור אם הגב התחתון לא נוח.' },
+  { id: 'torso-rotation',      focus: 'abs',       name: 'Torso Rotation Machine',    nameHe: 'מכונת רוטציה לבטן',         equipment: 'Torso rotation machine',      equipmentHe: 'מכונת רוטציה',              instruction: 'Use a light load and rotate through a controlled, pain-free range.', instructionHe: 'בחר משקל קל וסובב בטווח נשלט וללא כאב.' },
+  { id: 'ab-wheel',            focus: 'abs',       name: 'Ab Wheel Rollout',          nameHe: 'גלגל בטן',                  equipment: 'Ab wheel',                    equipmentHe: 'גלגל בטן',                   instruction: 'Roll out slowly keeping hips down and return without arching.', instructionHe: 'גלגלו לאט תוך שמירת אגן נמוך וחזרו בלי להקשית.' },
+
+  // Additional full-body exercises for the gym builder
+  { id: 'romanian-deadlift',   focus: 'full',      name: 'Romanian Deadlift',         nameHe: 'דדליפט רומני',               equipment: 'Barbell or dumbbells',        equipmentHe: 'בר או משקולות',              instruction: 'Hinge at the hips, push them back and lower the weight along your legs.', instructionHe: 'דחפו את האגן לאחור והורידו את המשקל לאורך הרגליים.' },
+  { id: 'pull-up',             focus: 'full',      name: 'Pull-Up',                   nameHe: 'מתח',                        equipment: 'Pull-up bar',                 equipmentHe: 'מוט מתח',                    instruction: 'Start from a dead hang and pull your chest to the bar.', instructionHe: 'התחילו מתלייה מלאה ומשכו את החזה לכיוון המוט.' },
+  { id: 'chin-up',             focus: 'back',      name: 'Chin-Up',                   nameHe: 'צ׳ין-אפ (אחיזה הפוכה)',      equipment: 'Pull-up bar',                 equipmentHe: 'מוט מתח',                    instruction: 'Supinated grip, pull up until chin clears the bar.', instructionHe: 'אחיזה הפוכה, משכו עד שהסנטר עולה מעל המוט.' },
+  { id: 't-bar-row',           focus: 'back',      name: 'T-Bar Row',                 nameHe: 'חתירה טי-בר',                equipment: 'T-bar row machine',           equipmentHe: 'מכונת חתירה טי-בר',          instruction: 'Hinge over the bar and pull with elbows close to the body.', instructionHe: 'הטו מעל המוט ומשכו עם המרפקים קרובים לגוף.' },
+  { id: 'lat-pullover',        focus: 'back',      name: 'Lat Pullover Machine',      nameHe: 'מכונת פולאובר',              equipment: 'Lat pullover machine',        equipmentHe: 'מכונת פולאובר',              instruction: 'Extend arms overhead and pull down through a full arc, squeezing lats.', instructionHe: 'פשטו ידיים מעל הראש ומשכו למטה בקשת מלאה, סחטו גב.' },
+
+  { id: 'hack-squat',          focus: 'legs',      name: 'Hack Squat',                nameHe: 'סקוואט האק',                 equipment: 'Hack squat machine',          equipmentHe: 'מכונת האק סקוואט',           instruction: 'Keep back against the pad, lower until thighs are parallel and drive through heels.', instructionHe: 'שמרו גב על הכרית, רדו עד שהירכיים מקבילות ודחפו דרך העקבים.' },
+  { id: 'hip-abduction',       focus: 'legs',      name: 'Hip Abduction Machine',     nameHe: 'מכונת הרחקת ירך',            equipment: 'Hip abduction machine',       equipmentHe: 'מכונת הרחקת ירך',            instruction: 'Push knees outward against the pads with controlled movement.', instructionHe: 'דחפו ברכיים החוצה כנגד הכריות בתנועה מבוקרת.' },
+  { id: 'hip-adduction',       focus: 'legs',      name: 'Hip Adduction Machine',     nameHe: 'מכונת קירוב ירך',            equipment: 'Hip adduction machine',       equipmentHe: 'מכונת קירוב ירך',            instruction: 'Squeeze knees together against resistance and release slowly.', instructionHe: 'סחטו ברכיים יחד כנגד ההתנגדות ושחררו לאט.' },
+  { id: 'seated-calf-raise-m', focus: 'legs',      name: 'Seated Calf Raise Machine', nameHe: 'מכונת עליות תאומים ישיבה',   equipment: 'Seated calf raise machine',   equipmentHe: 'מכונת עליות תאומים ישיבה',   instruction: 'Full range: rise high, pause, and lower slowly below the step.', instructionHe: 'טווח מלא: עלו גבוה, עצרו, ורדו לאט מתחת למדרגה.' },
+
+  { id: 'arnold-press',        focus: 'shoulders', name: 'Arnold Press',              nameHe: 'לחיצת ארנולד',               equipment: 'Dumbbells',                   equipmentHe: 'משקולות',                    instruction: 'Start with palms facing you, rotate and press overhead, reverse on the way down.', instructionHe: 'התחלו עם כפות לכיוונכם, סובבו ולחצו מעלה, הפכו בדרך למטה.' },
+  { id: 'dumbbell-lateral',    focus: 'shoulders', name: 'Dumbbell Lateral Raise',    nameHe: 'הרחקת כתף עם משקולות',       equipment: 'Dumbbells',                   equipmentHe: 'משקולות',                    instruction: 'Slight forward lean, raise to shoulder height with a soft elbow.', instructionHe: 'נטייה קלה קדימה, הרימו לגובה כתף עם מרפק רך.' },
+  { id: 'front-raise',         focus: 'shoulders', name: 'Front Raise',               nameHe: 'הרמת ידיים קדמית',           equipment: 'Dumbbells or plate',          equipmentHe: 'משקולות או צלחת',            instruction: 'Raise one or both arms straight in front to shoulder height.', instructionHe: 'הרימו יד אחת או שתיים ישירות קדימה לגובה הכתף.' },
+
+  { id: 'cable-curl',          focus: 'arms',      name: 'Cable Curl',                nameHe: 'כפיפת מרפקים בכבל',          equipment: 'Low cable pulley',            equipmentHe: 'פולי תחתון',                 instruction: 'Keep elbows pinned and curl the cable bar to shoulder level.', instructionHe: 'קבעו מרפקים וכופפו את מוט הכבל לגובה הכתף.' },
+  { id: 'overhead-triceps',    focus: 'arms',      name: 'Overhead Triceps Extension', nameHe: 'פשיטת מרפקים מעל הראש',    equipment: 'Cable or dumbbell',           equipmentHe: 'כבל או משקולת',              instruction: 'Hold weight behind head, extend elbows upward, keep upper arms still.', instructionHe: 'החזיקו משקל מאחורי הראש, פשטו מרפקים מעלה, שמרו זרועות יציבות.' },
+  { id: 'ez-bar-curl',         focus: 'arms',      name: 'EZ-Bar Curl',               nameHe: 'כפיפת מרפקים עם בר EZ',      equipment: 'EZ curl bar',                 equipmentHe: 'בר EZ',                      instruction: 'Use a semi-supinated grip and curl through full range without swinging.', instructionHe: 'השתמשו באחיזה חצי-הפוכה וכופפו בטווח מלא בלי תנופה.' },
+  { id: 'close-grip-press',    focus: 'chest',     name: 'Close-Grip Bench Press',    nameHe: 'לחיצת חזה אחיזה צרה',        equipment: 'Barbell or Smith machine',    equipmentHe: 'בר או מכונת סמית',           instruction: 'Grip inside shoulder-width, lower to lower chest and press up.', instructionHe: 'אחיזה בתוך רוחב כתפיים, הורידו לחזה תחתון ולחצו מעלה.' },
 ]
 
 // Dumbbell alternatives for machine exercises — shown when user taps "No machine"
@@ -220,6 +244,40 @@ function getDefaultGymFocuses(profile: UserProfile): GymFocus[] {
   return ['full']
 }
 
+const PULLUP_BAR_BACK_EXERCISES: Exercise[] = [
+  {
+    id: 'pullup-bar-dead-hang',
+    name: 'Dead Hang',
+    nameHe: 'תלייה על מתח',
+    sets: 3,
+    reps: 20,
+    durationSeconds: 20,
+    restSeconds: 45,
+    instruction: 'Hang from the bar with shoulders active, breathe steadily, and step down before grip fails.',
+    instructionHe: 'היתלה על המתח עם כתפיים פעילות, נשום רגוע ורד לפני שהאחיזה מתפרקת.',
+  },
+  {
+    id: 'pullup-bar-scapular-pull',
+    name: 'Scapular Pull-Up',
+    nameHe: 'משיכת שכמות במתח',
+    sets: 3,
+    reps: 8,
+    restSeconds: 45,
+    instruction: 'Hang with straight arms, pull the shoulder blades down, then return slowly without bending the elbows.',
+    instructionHe: 'היתלה בידיים ישרות, משוך שכמות למטה וחזור לאט בלי לכופף מרפקים.',
+  },
+  {
+    id: 'pullup-bar-assisted-negative',
+    name: 'Assisted Pull-Up Negative',
+    nameHe: 'ירידה איטית ממתח',
+    sets: 3,
+    reps: 5,
+    restSeconds: 60,
+    instruction: 'Start from the top with a chair or jump, then lower for 3-5 seconds under control.',
+    instructionHe: 'התחל מלמעלה בעזרת כיסא או קפיצה, ואז רד 3-5 שניות בשליטה.',
+  },
+]
+
 /**
  * Maps the user's primary goal to the WorkoutCategory that best fits it,
  * so the "Goal Workout" tab actually shows THEIR goal rather than a generic preset.
@@ -271,6 +329,10 @@ function getHomeDifficulty(level: UserProfile['fitnessLevel'], duration: Workout
   return 'medium'
 }
 
+function hasPullupBar(profile: UserProfile) {
+  return (profile.equipment ?? []).includes('pullup_bar')
+}
+
 function selectHomeExercises(category: HomeWorkoutCategory, profile: UserProfile, count: number) {
   const resolvedCategory = resolveHomeWorkoutCategory(category, profile)
   const preferredWorkouts = [
@@ -279,6 +341,10 @@ function selectHomeExercises(category: HomeWorkoutCategory, profile: UserProfile
     ...mockWorkouts.filter(workout => workout.category !== 'gym' && workout.category !== resolvedCategory && workout.category !== 'goal'),
   ]
   const unique = new Map<string, Exercise>()
+
+  if (hasPullupBar(profile) && (resolvedCategory === 'back' || category === 'goal')) {
+    PULLUP_BAR_BACK_EXERCISES.forEach(exercise => unique.set(exercise.id, exercise))
+  }
 
   preferredWorkouts.forEach(workout => {
     workout.exercises.forEach(exercise => {
@@ -1233,7 +1299,7 @@ function SelectWorkout({
       {showChangeGrid && (
         <>
           <div className="workout-choice-grid">
-            {(['goal', 'abs', 'arms', 'legs', 'gym', 'aerobic'] as WorkoutChoice[]).map(choice => (
+            {(['goal', 'abs', 'arms', 'legs', 'back', 'chest', 'gym', 'aerobic'] as WorkoutChoice[]).map(choice => (
               <button
                 key={choice}
                 className={`workout-choice-card${selectedChoice === choice ? ' selected' : ''}`}
@@ -1503,6 +1569,7 @@ export default function WorkoutPage() {
     if (focus === 'abs')     return 'abs'
     if (focus === 'arms')    return 'arms'
     if (focus === 'legs')    return 'legs'
+    if (focus === 'back')    return 'back'
     return 'goal'  // 'goal' catch-all
   }
 
