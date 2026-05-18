@@ -1,14 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode, useEffect } from 'react'
 import { useAuth } from './context/AuthContext'
 import { useUser } from './context/UserContext'
 import { useI18n } from './context/I18nContext'
 import { savePendingInvite, acceptInvite, getPendingInvite, clearPendingInvite } from './lib/friendsService'
+import { syncKnownAppAccess } from './lib/appAccess'
+import { syncScheduledReminders } from './lib/remindersService'
 
 import AnimatedWaveBackground from './components/AnimatedWaveBackground'
+import AchievementToast from './components/AchievementToast'
 
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
+const SignupPage = lazy(() => import('./pages/SignupPage'))
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const WorkoutPage = lazy(() => import('./pages/WorkoutPage'))
@@ -24,6 +28,7 @@ const RemindersPage = lazy(() => import('./pages/RemindersPage'))
 const AIToolsPage = lazy(() => import('./pages/AIToolsPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
 const ProgressPage = lazy(() => import('./pages/ProgressPage'))
+const ShredPage    = lazy(() => import('./pages/ShredPage'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -48,7 +53,9 @@ function OnboardingRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const { profile, cloudSynced } = useUser()
   const { t } = useI18n()
-  if (loading || !cloudSynced) return <div className="spinner-screen">{t('loading')}</div>
+  if (loading) return <div className="spinner-screen">{t('loading')}</div>
+  // Only wait for cloud sync if logged in (need to know if onboarding is complete)
+  if (user && !cloudSynced) return <div className="spinner-screen">{t('loading')}</div>
   // Already done → go to app
   if (user && profile.onboardingComplete) return <Navigate to="/dashboard" replace />
   // Allow unauthenticated users — auth is step 1 of the onboarding itself
@@ -88,18 +95,94 @@ function InviteHandler() {
   return null
 }
 
+const INACTIVE_KEY = 'smartfit_last_inactive'
+const RESET_THRESHOLD_MS = 3 * 60 * 1000 // 3 minutes
+
+function DashboardResetGuard() {
+  const { user } = useAuth()
+  const { profile, cloudSynced } = useUser()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!user || !cloudSynced || !profile.onboardingComplete) return
+
+    const handleResume = () => {
+      const raw = localStorage.getItem(INACTIVE_KEY)
+      if (!raw) return
+      const elapsed = Date.now() - parseInt(raw, 10)
+      if (elapsed >= RESET_THRESHOLD_MS) navigate('/dashboard', { replace: true })
+    }
+
+    const handleHide = () => localStorage.setItem(INACTIVE_KEY, Date.now().toString())
+
+    // Web: visibilitychange
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') handleHide()
+      else handleResume()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    // Native: Capacitor appStateChange
+    let removeCapacitorListener: (() => void) | null = null
+    import('@capacitor/app').then(({ App }) => {
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) handleResume()
+        else handleHide()
+      }).then(handle => {
+        removeCapacitorListener = () => handle.remove()
+      })
+    }).catch(() => {})
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      removeCapacitorListener?.()
+    }
+  }, [user, cloudSynced, profile.onboardingComplete, navigate])
+
+  return null
+}
+
+function ReminderScheduler() {
+  const { user } = useAuth()
+  const { profile, cloudSynced } = useUser()
+  const { language } = useI18n()
+
+  useEffect(() => {
+    if (!user || !cloudSynced || !profile.onboardingComplete) return
+    syncScheduledReminders(language === 'he').catch(error => {
+      console.log('[Reminders] startup sync failed', error)
+    })
+  }, [cloudSynced, language, profile.onboardingComplete, user])
+
+  return null
+}
+
+function AppAccessSync() {
+  useEffect(() => {
+    syncKnownAppAccess().catch(error => {
+      console.log('[AppAccess] passive sync failed', error)
+    })
+  }, [])
+
+  return null
+}
+
 export default function App() {
   const { t } = useI18n()
 
   return (
     <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <InviteHandler />
+      <AppAccessSync />
+      <ReminderScheduler />
+      <DashboardResetGuard />
       <AnimatedWaveBackground />
+      <AchievementToast />
       <Suspense fallback={<div className="spinner-screen">{t('loading')}</div>}>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-          <Route path="/signup" element={<Navigate to="/onboarding" replace />} />
+          <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
 
           <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
 
@@ -116,7 +199,8 @@ export default function App() {
           <Route path="/recipes" element={<ProtectedRoute><RecipesPage /></ProtectedRoute>} />
           <Route path="/social" element={<ProtectedRoute><SocialPage /></ProtectedRoute>} />
           <Route path="/reminders" element={<ProtectedRoute><RemindersPage /></ProtectedRoute>} />
-          <Route path="/wearable" element={<ProtectedRoute><WearablePage /></ProtectedRoute>} />
+          <Route path="/wearable"   element={<ProtectedRoute><WearablePage /></ProtectedRoute>} />
+          <Route path="/shredding" element={<ProtectedRoute><ShredPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
