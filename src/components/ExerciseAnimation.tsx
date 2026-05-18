@@ -83,6 +83,12 @@ const EXERCISE_DEFS: Record<string, ExerciseDef> = {
   'torso rotation machine':  { muscles: ['obliques', 'core'], anim: 'torso-rotation' },
 
   // Bodyweight extras
+  'dead bug':                { muscles: ['core', 'lower-abs', 'hip-flexors'], anim: 'plank' },
+  'close-grip push-up':      { muscles: ['triceps', 'chest', 'front-delts'], anim: 'push-up' },
+  'dead hang':               { muscles: ['lats', 'forearms', 'traps'], anim: 'pulldown' },
+  'scapular pull-up':        { muscles: ['lats', 'upper-back', 'traps'], anim: 'pulldown' },
+  'assisted pull-up negative': { muscles: ['lats', 'biceps', 'upper-back'], anim: 'pulldown' },
+  'ab wheel rollout':        { muscles: ['core', 'lower-abs', 'lats', 'front-delts'], anim: 'plank' },
   'bicycle crunch':          { muscles: ['upper-abs', 'lower-abs', 'obliques'], anim: 'torso-rotation' },
   'leg raises':              { muscles: ['lower-abs', 'hip-flexors'], anim: 'crunch' },
   'russian twist':           { muscles: ['obliques', 'core'], anim: 'torso-rotation' },
