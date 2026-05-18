@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useI18n } from '../context/I18nContext'
 import { ExerciseAnimation } from '../components/ExerciseAnimation'
+import { WgerExerciseBrowser } from '../components/WgerExerciseBrowser'
+import {
+  CHOICE_TO_WGER_CATEGORY,
+  GYM_FOCUS_TO_WGER,
+  HOME_CHOICE_TO_WGER,
+  fetchWgerPool,
+  type WgerExercise,
+} from '../lib/wgerService'
 import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type ScheduleFocus, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
 import {
   mockAerobicWorkouts,
@@ -49,6 +57,7 @@ type GymExerciseTemplate = {
   instructionHe: string
   name: string
   nameHe: string
+  imageUrl?: string
 }
 
 const categoryLabelKeys: Record<WorkoutChoice, string> = {
@@ -378,6 +387,48 @@ function buildHomeWorkout(choice: HomeWorkoutCategory, profile: UserProfile): Wo
   }
 }
 
+function buildHomeWorkoutFromWger(
+  choice: HomeWorkoutCategory,
+  wgerExercises: WgerExercise[],
+  profile: UserProfile,
+): Workout {
+  const baseWorkout = getWorkout(choice)
+  const duration = getConfiguredWorkoutDuration(profile, 'home')
+  const sets = getHomeSetTarget(profile.fitnessLevel, duration)
+  const restSeconds = getHomeRestSeconds(profile.fitnessLevel, duration)
+  const count = getHomeExerciseCount(duration)
+  const level = profile.fitnessLevel ?? 'intermediate'
+  const reps = choice === 'abs' ? 15 : choice === 'arms' ? 12 : 10
+
+  const exercises: Exercise[] = wgerExercises.slice(0, count).map((ex, i) => ({
+    id: `wger-home-${ex.id}-${i}`,
+    name: ex.name,
+    nameHe: ex.name,
+    sets,
+    reps,
+    restSeconds,
+    instruction: ex.instructions || `Perform ${ex.name} with full range of motion and controlled pace.`,
+    instructionHe: ex.instructions || `בצע ${ex.name} עם טווח תנועה מלא וקצב מבוקר.`,
+    imageUrl: ex.imageUrl ?? undefined,
+  }))
+
+  if (exercises.length === 0) return buildHomeWorkout(choice, profile)
+
+  const muscleList = [...new Set(wgerExercises.flatMap(ex => ex.primaryMuscles).filter(Boolean))].slice(0, 3)
+  const categoryName = wgerExercises[0]?.category ?? choice
+
+  return {
+    ...baseWorkout,
+    id: `wger-home-${choice}-${Date.now()}`,
+    difficulty: level === 'advanced' ? 'hard' : level === 'beginner' ? 'easy' : 'medium',
+    durationMinutes: duration,
+    targetMuscles: muscleList,
+    summary: `${count} ${categoryName} exercises from the wger database, selected for your level.`,
+    summaryHe: `${count} תרגילי ${categoryName} ממאגר wger, מותאמים לרמתך.`,
+    exercises,
+  }
+}
+
 // ── Time-budget exercise count ────────────────────────────────────────────────
 // Given the selected duration (work time, including rest), work backwards to how
 // many exercises actually fit. Formula per exercise:
@@ -484,26 +535,53 @@ function getGymPrescription(goal: GymGoal, level: UserProfile['fitnessLevel'], m
   }
 }
 
-function selectGymExerciseTemplates(focuses: GymFocus[], count: number) {
+const WGER_CATEGORY_TO_FOCUS: Record<number, GymFocus> = {
+  10: 'abs', 8: 'arms', 12: 'back', 11: 'chest', 9: 'legs', 13: 'shoulders',
+}
+
+function wgerToGymTemplate(ex: WgerExercise): GymExerciseTemplate {
+  return {
+    id: `wger-${ex.id}`,
+    focus: WGER_CATEGORY_TO_FOCUS[ex.categoryId] ?? 'full',
+    name: ex.name,
+    nameHe: ex.name,
+    equipment: ex.category,
+    equipmentHe: ex.category,
+    instruction: ex.instructions || `Perform ${ex.name} with controlled movement.`,
+    instructionHe: ex.instructions || `בצע ${ex.name} בתנועה מבוקרת.`,
+    imageUrl: ex.imageUrl ?? undefined,
+  }
+}
+
+function selectGymExerciseTemplates(
+  focuses: GymFocus[],
+  count: number,
+  wgerPool: GymExerciseTemplate[] = [],
+) {
+  const pool = wgerPool.length > 0 ? wgerPool : GYM_EXERCISES
   const normalizedFocuses: GymFocus[] = focuses.length > 0 ? focuses : ['full']
   const buckets = normalizedFocuses.map(focus => {
-    const exercises = GYM_EXERCISES.filter(exercise => exercise.focus === focus)
-    return exercises.length > 0 ? exercises : GYM_EXERCISES.filter(exercise => exercise.focus === 'full')
+    const byFocus = pool.filter(exercise => exercise.focus === focus)
+    return byFocus.length > 0 ? byFocus : pool.filter(exercise => exercise.focus === 'full')
   })
+
+  // Fallback bucket: everything in pool
+  const fallbackPool = pool.length > 0 ? pool : GYM_EXERCISES
+
   const selected: GymExerciseTemplate[] = []
   let cursor = 0
 
-  while (selected.length < count && cursor < count * buckets.length * 2) {
+  while (selected.length < count && cursor < count * buckets.length * 3) {
     const bucket = buckets[cursor % buckets.length]
     const exercise = bucket[Math.floor(cursor / buckets.length) % bucket.length]
-    if (!selected.some(item => item.id === exercise.id)) {
+    if (exercise && !selected.some(item => item.id === exercise.id)) {
       selected.push(exercise)
     }
     cursor += 1
   }
 
   if (selected.length < count) {
-    for (const exercise of GYM_EXERCISES) {
+    for (const exercise of fallbackPool) {
       if (selected.length >= count) break
       if (!selected.some(item => item.id === exercise.id)) selected.push(exercise)
     }
@@ -766,19 +844,21 @@ function buildGymWorkout({
   goal,
   profile,
   progress,
+  wgerPool = [],
 }: {
   duration: GymDuration
   focuses: GymFocus[]
   goal: GymGoal
   profile: UserProfile
   progress: WorkoutProgressEntry[]
+  wgerPool?: GymExerciseTemplate[]
 }): Workout {
   const progressSummary = analyzeGymProgress(progress, profile)
   const prescription = getGymPrescription(goal, profile.fitnessLevel, progressSummary.mode, duration)
   const repSeconds = prescription.reps * 4   // ~4 sec/rep on machines
   const exerciseCount = calcGymExerciseCount(duration, prescription.sets, repSeconds, prescription.restSeconds)
   const safeFocuses: GymFocus[] = focuses.length > 0 ? focuses : ['full']
-  const templates = selectGymExerciseTemplates(safeFocuses, exerciseCount)
+  const templates = selectGymExerciseTemplates(safeFocuses, exerciseCount, wgerPool)
   const focusNamesHe = getGymFocusNames(safeFocuses, 'he')
   const focusNamesEn = getGymFocusNames(safeFocuses, 'en')
   const goalHe = getGymGoalName(goal, 'he')
@@ -810,6 +890,7 @@ function buildGymWorkout({
         sets: prescription.sets,
         instruction: `${template.instruction} Equipment: ${template.equipment}.`,
         instructionHe: `${template.instructionHe} ציוד: ${template.equipmentHe}.`,
+        imageUrl: template.imageUrl,
       }
     }),
   }
@@ -1114,7 +1195,10 @@ function GymWorkoutBuilderPanel({
             return (
               <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
                 <div className="exercise-list-visual">
-                  <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
+                  {exercise.imageUrl
+                    ? <img src={exercise.imageUrl} alt={exercise.name} className="exercise-wger-img" loading="lazy" />
+                    : <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
+                  }
                   <span className="exercise-num">{index + 1}</span>
                 </div>
                 <div className="exercise-list-info">
@@ -1196,6 +1280,7 @@ function SelectWorkout({
   const { profile } = useUser()
   const navigate = useNavigate()
   const [showChangeGrid, setShowChangeGrid] = useState(false)
+  const [showExerciseLib, setShowExerciseLib] = useState(false)
   const profileGoals = getProfileGoals(profile)
   const profileLocations = getProfileWorkoutTypes(profile)
   const ageGuidance = getAgeGuidance(profile)
@@ -1267,7 +1352,10 @@ function SelectWorkout({
             {adjustedExercises.map((exercise, index) => (
               <li key={`workout-exercise-${selectedWorkout.id}-${exercise.id}-${index}`} className="exercise-list-item">
                 <div className="exercise-list-visual">
-                  <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
+                  {exercise.imageUrl
+                    ? <img src={exercise.imageUrl} alt={exercise.name} className="exercise-wger-img" loading="lazy" />
+                    : <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
+                  }
                   <span className="exercise-num">{index + 1}</span>
                 </div>
                 <div className="exercise-list-info">
@@ -1339,6 +1427,27 @@ function SelectWorkout({
             </div>
           )}
         </>
+      )}
+
+      {/* Exercise library (wger API) */}
+      <button
+        className="training-plan-banner"
+        onClick={() => setShowExerciseLib(v => !v)}
+        style={{ marginTop: 4 }}
+      >
+        <span className="training-plan-banner-icon">📚</span>
+        <div className="training-plan-banner-text">
+          <strong>{isHebrew ? 'ספריית תרגילים' : 'Exercise Library'}</strong>
+          <small>{isHebrew ? 'עיון בתרגילים עם תמונות ושרירים' : 'Browse exercises with images & muscles'}</small>
+        </div>
+        <span className="training-plan-banner-arrow">{showExerciseLib ? '▲' : '▼'}</span>
+      </button>
+      {showExerciseLib && (
+        <div style={{ marginTop: 2 }}>
+          <WgerExerciseBrowser
+            defaultCategoryId={CHOICE_TO_WGER_CATEGORY[selectedChoice] ?? 9}
+          />
+        </div>
       )}
 
       {/* Extra links */}
@@ -1560,6 +1669,10 @@ export default function WorkoutPage() {
   const [lastFeedback, setLastFeedback] = useState<string | null>(null)
   const gymProgress = useMemo(() => analyzeGymProgress(getWorkoutProgress(), profile), [profile])
 
+  // wger exercise pools — loaded async and cached in localStorage by wgerService
+  const [wgerGymPool, setWgerGymPool] = useState<GymExerciseTemplate[]>([])
+  const [wgerHomeCache, setWgerHomeCache] = useState<Partial<Record<string, WgerExercise[]>>>({})
+
   // Live heart rate from BLE wearable
   const [liveHR, setLiveHR] = useState<number>(() => getCurrentHR())
   useEffect(() => {
@@ -1613,6 +1726,24 @@ export default function WorkoutPage() {
     }
   }, []) // intentionally run only on mount
 
+  // Pre-fetch wger exercises for gym focuses whenever they change
+  useEffect(() => {
+    const categoryIds = [...new Set(gymFocuses.flatMap(f => GYM_FOCUS_TO_WGER[f] ?? [9]))]
+    fetchWgerPool(categoryIds)
+      .then(exercises => setWgerGymPool(exercises.map(wgerToGymTemplate)))
+      .catch(() => {/* silently fall back to static pool */})
+  }, [gymFocuses])
+
+  // Pre-fetch wger exercises for the current home category
+  useEffect(() => {
+    if (selectedChoice === 'gym' || selectedChoice === 'aerobic') return
+    const catId = HOME_CHOICE_TO_WGER[selectedChoice]
+    if (!catId || wgerHomeCache[selectedChoice]) return
+    fetchWgerPool([catId])
+      .then(exercises => setWgerHomeCache(prev => ({ ...prev, [selectedChoice]: exercises })))
+      .catch(() => {/* silently fall back to mock data */})
+  }, [selectedChoice]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const exercises = useMemo(
     () => selectedChoice === 'gym'
       ? selectedWorkout.exercises
@@ -1635,7 +1766,25 @@ export default function WorkoutPage() {
     if (choice === 'gym') {
       if (generatedGymWorkout) setSelectedWorkout(generatedGymWorkout)
     } else if (choice !== 'aerobic') {
-      setSelectedWorkout(buildHomeWorkout(choice, profile))
+      const wgerExs = wgerHomeCache[choice]
+      const workout = wgerExs && wgerExs.length > 0
+        ? buildHomeWorkoutFromWger(choice, wgerExs, profile)
+        : buildHomeWorkout(choice, profile)
+      setSelectedWorkout(workout)
+      // Also kick off a fetch if not cached yet
+      if (!wgerExs) {
+        const catId = HOME_CHOICE_TO_WGER[choice]
+        if (catId) {
+          fetchWgerPool([catId])
+            .then(exercises => {
+              setWgerHomeCache(prev => ({ ...prev, [choice]: exercises }))
+              if (exercises.length > 0) {
+                setSelectedWorkout(buildHomeWorkoutFromWger(choice, exercises, profile))
+              }
+            })
+            .catch(() => {})
+        }
+      }
     }
     resetWorkoutState()
   }
@@ -1672,12 +1821,13 @@ export default function WorkoutPage() {
       goal: gymGoal,
       profile,
       progress: getWorkoutProgress(),
+      wgerPool: wgerGymPool,
     })
     setGeneratedGymWorkout(workout)
     setSelectedWorkout(workout)
     setSelectedChoice('gym')
     resetWorkoutState()
-  }, [gymDuration, gymFocuses, gymGoal, profile, resetWorkoutState])
+  }, [gymDuration, gymFocuses, gymGoal, profile, resetWorkoutState, wgerGymPool])
 
   const finishWorkout = useCallback((cardioSummary?: CardioSummary) => {
     const completionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -1877,7 +2027,10 @@ export default function WorkoutPage() {
       <p className="exercise-counter">{t('exercise')} {exIndex + 1} {t('of')} {total}</p>
 
       <div className="exercise-focus-card">
-        <ExerciseAnimation exerciseName={currentEx.name} />
+        {currentEx.imageUrl
+          ? <img src={currentEx.imageUrl} alt={currentEx.name} className="exercise-focus-wger-img" loading="lazy" />
+          : <ExerciseAnimation exerciseName={currentEx.name} />
+        }
         <h2 className="exercise-focus-name">{isHebrew ? currentEx.nameHe : currentEx.name}</h2>
         <p className="exercise-focus-sets">
           {t('set')} {setIndex + 1} {t('of')} {currentEx.sets}

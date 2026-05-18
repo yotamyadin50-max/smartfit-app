@@ -34,6 +34,7 @@ export interface Exercise {
   instruction: string
   instructionHe: string
   coaching?: ExerciseCoachingDetails
+  imageUrl?: string
 }
 
 export interface Workout {

@@ -708,6 +708,19 @@ button { color: inherit; }
 .exercise-focus-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; text-align: center; }
 .exercise-image-placeholder { min-height: 58px; margin-bottom: 12px; border-radius: var(--radius-sm); background: var(--accent-dim); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; padding: 10px; }
 
+/* wger exercise images — compact (in list) */
+.exercise-wger-img {
+  width: 58px; height: 58px; object-fit: cover;
+  border-radius: 10px; display: block; flex-shrink: 0;
+  background: rgba(139,92,246,0.08);
+}
+/* wger exercise image — full size (active workout card) */
+.exercise-focus-wger-img {
+  width: 100%; max-height: 220px; object-fit: cover;
+  border-radius: 12px; margin-bottom: 14px; display: block;
+  background: rgba(139,92,246,0.08);
+}
+
 /* Wikipedia machine images */
 .exercise-machine-img { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--radius-sm); margin-bottom: 12px; background: var(--bg-input); display: block; }
 .exercise-machine-img.skeleton { height: 120px; background: linear-gradient(90deg, var(--bg-input) 25%, var(--bg-card) 50%, var(--bg-input) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
