@@ -10,6 +10,8 @@ import {
   fetchWgerPool,
   type WgerExercise,
 } from '../lib/wgerService'
+import { GYM_EXERCISES_FALLBACK, type GymFocus, type GymExerciseTemplate } from '../data/gymExercises'
+import { getExercisesForCategory, type PoolExercise, type ExerciseCategory } from '../lib/exercisePool'
 import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type ScheduleFocus, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
 import {
   mockAerobicWorkouts,
@@ -21,19 +23,20 @@ import {
   type WorkoutCategory,
 } from '../data/mockWorkouts'
 import { getHeartRateSummary } from '../deviceConnections'
+import { sendNotification } from '../lib/notifications'
 import { estimateCardioCalories, getCardioActivityType } from '../fitnessTracking'
 import { startLocationTracker, type LocationTrackerStatus } from '../locationTracker'
-import { getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
+import { getLastWorkoutWeights, getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
 import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, onHeartRate } from '../lib/heartRate'
 
 type Phase = 'select' | 'countdown' | 'active' | 'rest' | 'aerobic' | 'done'
 type WorkoutChoice = WorkoutCategory | 'aerobic'
 type AgeGuidance = ReturnType<typeof getAgeGuidance>
-type GymFocus = 'full' | 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'abs'
 type GymGoal = 'strength' | 'muscle' | 'endurance'
 type WorkoutDuration = 10 | 15 | 20 | 30 | 45 | 60 | 75 | 90
 type GymDuration = 15 | 20 | 30 | 45 | 60 | 75 | 90
 type HomeWorkoutCategory = Exclude<WorkoutCategory, 'gym'>
+// GymFocus and GymExerciseTemplate are imported from ../data/gymExercises
 type GymProgressMode = 'gentle' | 'steady' | 'boost'
 type CardioSummary = {
   calories: number
@@ -48,17 +51,7 @@ type GymProgressSummary = {
   target: number
   workoutsThisWeek: number
 }
-type GymExerciseTemplate = {
-  equipment: string
-  equipmentHe: string
-  focus: GymFocus
-  id: string
-  instruction: string
-  instructionHe: string
-  name: string
-  nameHe: string
-  imageUrl?: string
-}
+// GymExerciseTemplate is imported from ../data/gymExercises
 
 const categoryLabelKeys: Record<WorkoutChoice, string> = {
   goal: 'goalWorkout',
@@ -87,61 +80,6 @@ const GYM_GOAL_OPTIONS: { key: GymGoal; label: string; labelHe: string }[] = [
   { key: 'strength', label: 'Strength', labelHe: 'כוח' },
   { key: 'muscle', label: 'Muscle growth', labelHe: 'בניית שריר' },
   { key: 'endurance', label: 'Muscular endurance', labelHe: 'סיבולת שריר' },
-]
-
-const GYM_EXERCISES: GymExerciseTemplate[] = [
-  { id: 'leg-press', focus: 'full', name: 'Leg Press', nameHe: 'לחיצת רגליים במכונה', equipment: 'Leg press machine', equipmentHe: 'מכונת לחיצת רגליים', instruction: 'Set the seat so your knees bend comfortably, press through the full foot, and avoid locking the knees.', instructionHe: 'כוון את המושב כך שהברכיים יתכופפו בנוחות, דחוף דרך כל כף הרגל ואל תנעל ברכיים.' },
-  { id: 'lat-pulldown', focus: 'full', name: 'Lat Pulldown', nameHe: 'פולי עליון לגב', equipment: 'Lat pulldown cable machine', equipmentHe: 'מכונת פולי עליון', instruction: 'Pull the bar toward the upper chest with shoulders down and controlled return.', instructionHe: 'משוך את המוט לכיוון החזה העליון כשהכתפיים נמוכות וחזור בשליטה.' },
-  { id: 'chest-press', focus: 'full', name: 'Chest Press Machine', nameHe: 'מכונת לחיצת חזה', equipment: 'Chest press machine', equipmentHe: 'מכונת לחיצת חזה', instruction: 'Keep shoulder blades back, press forward smoothly, and stop before the elbows lock.', instructionHe: 'שמור שכמות לאחור, לחץ קדימה בצורה חלקה ועצור לפני נעילת מרפקים.' },
-  { id: 'cable-row', focus: 'full', name: 'Seated Cable Row', nameHe: 'חתירה בישיבה בכבל', equipment: 'Seated cable row', equipmentHe: 'כבל חתירה בישיבה', instruction: 'Sit tall, pull elbows toward the ribs, and keep the torso stable.', instructionHe: 'שב זקוף, משוך מרפקים לכיוון הצלעות ושמור גוף יציב.' },
-  { id: 'machine-shoulder-press', focus: 'full', name: 'Shoulder Press Machine', nameHe: 'מכונת לחיצת כתפיים', equipment: 'Shoulder press machine', equipmentHe: 'מכונת לחיצת כתפיים', instruction: 'Start with handles around shoulder height and press without arching the lower back.', instructionHe: 'התחל כשהידיות בגובה הכתפיים ולחץ בלי להקשית את הגב התחתון.' },
-
-  { id: 'incline-db-press', focus: 'chest', name: 'Incline Dumbbell Press', nameHe: 'לחיצת חזה בשיפוע עם משקולות', equipment: 'Incline bench and dumbbells', equipmentHe: 'ספסל שיפוע ומשקולות', instruction: 'Use a moderate incline, lower the dumbbells with control, and press on a steady path.', instructionHe: 'השתמש בשיפוע מתון, הורד את המשקולות בשליטה ולחץ במסלול יציב.' },
-  { id: 'cable-fly', focus: 'chest', name: 'Cable Fly', nameHe: 'פרפר בכבלים', equipment: 'Cable crossover', equipmentHe: 'קרוס כבלים', instruction: 'Keep a soft elbow bend and bring the hands together without shrugging.', instructionHe: 'שמור כיפוף קל במרפקים וקרב ידיים בלי להרים כתפיים.' },
-  { id: 'pec-deck', focus: 'chest', name: 'Pec Deck', nameHe: 'פרפר חזה במכונה', equipment: 'Pec deck machine', equipmentHe: 'מכונת פרפר חזה', instruction: 'Adjust the handles to chest height and squeeze the chest at the center.', instructionHe: 'כוון ידיות לגובה החזה וכווץ את החזה במרכז התנועה.' },
-
-  { id: 'single-arm-row', focus: 'back', name: 'Single Arm Cable Row', nameHe: 'חתירה יד אחת בכבל', equipment: 'Cable station', equipmentHe: 'עמדת כבלים', instruction: 'Pull one elbow back at a time and keep the ribs stacked over the hips.', instructionHe: 'משוך מרפק אחד לאחור בכל פעם ושמור צלעות מעל האגן.' },
-  { id: 'chest-supported-row', focus: 'back', name: 'Chest Supported Row', nameHe: 'חתירה עם תמיכת חזה', equipment: 'Row machine or incline bench', equipmentHe: 'מכונת חתירה או ספסל שיפוע', instruction: 'Rest the chest on the pad and pull with the upper back, not momentum.', instructionHe: 'הישען עם החזה על הריפוד ומשוך עם הגב העליון, לא עם תנופה.' },
-  { id: 'back-extension', focus: 'back', name: 'Back Extension', nameHe: 'פשיטת גב', equipment: 'Back extension bench', equipmentHe: 'ספסל פשיטת גב', instruction: 'Move slowly through a comfortable range and keep the neck neutral.', instructionHe: 'עבוד לאט בטווח נוח ושמור צוואר ניטרלי.' },
-
-  { id: 'leg-curl', focus: 'legs', name: 'Seated Leg Curl', nameHe: 'כפיפת ברך בישיבה', equipment: 'Seated leg curl machine', equipmentHe: 'מכונת כפיפת ברך', instruction: 'Line up the knee with the machine pivot and curl without lifting the hips.', instructionHe: 'יישר את הברך עם ציר המכונה וכפוף בלי להרים אגן.' },
-  { id: 'leg-extension', focus: 'legs', name: 'Leg Extension', nameHe: 'פשיטת ברך במכונה', equipment: 'Leg extension machine', equipmentHe: 'מכונת פשיטת ברך', instruction: 'Lift under control, pause briefly, and lower without swinging.', instructionHe: 'הרם בשליטה, עצור קצר, והורד בלי תנופה.' },
-  { id: 'smith-squat', focus: 'legs', name: 'Smith Machine Squat', nameHe: 'סקוואט בסמית', equipment: 'Smith machine', equipmentHe: 'מכונת סמית', instruction: 'Place feet where the movement feels stable and keep the knees tracking over the toes.', instructionHe: 'מקם רגליים במקום יציב ושמור ברכיים בכיוון האצבעות.' },
-  { id: 'calf-raise', focus: 'legs', name: 'Standing Calf Raise', nameHe: 'עליות תאומים במכונה', equipment: 'Calf raise machine', equipmentHe: 'מכונת תאומים', instruction: 'Rise high onto the toes, pause, then lower slowly.', instructionHe: 'עלה גבוה על קצות האצבעות, עצור, ואז רד לאט.' },
-
-  { id: 'cable-lateral-raise', focus: 'shoulders', name: 'Cable Lateral Raise', nameHe: 'הרחקת כתף בכבל', equipment: 'Low cable pulley', equipmentHe: 'פולי תחתון', instruction: 'Raise to shoulder height with a soft elbow and slow return.', instructionHe: 'הרם עד גובה כתף עם מרפק רך וחזור לאט.' },
-  { id: 'face-pull', focus: 'shoulders', name: 'Face Pull', nameHe: 'משיכת פנים בכבל', equipment: 'Cable rope', equipmentHe: 'חבל בכבל', instruction: 'Pull the rope toward eye level and rotate the hands slightly outward.', instructionHe: 'משוך את החבל לגובה העיניים וסובב ידיים מעט החוצה.' },
-  { id: 'rear-delt-machine', focus: 'shoulders', name: 'Rear Delt Machine', nameHe: 'מכונת כתף אחורית', equipment: 'Rear delt machine', equipmentHe: 'מכונת כתף אחורית', instruction: 'Keep the chest supported and open the arms with control.', instructionHe: 'שמור חזה נתמך ופתח ידיים בשליטה.' },
-
-  { id: 'triceps-pushdown', focus: 'arms', name: 'Cable Triceps Pushdown', nameHe: 'פשיטת מרפקים בכבל', equipment: 'Cable rope or bar', equipmentHe: 'חבל או מוט בכבל', instruction: 'Keep elbows close to the ribs and press down without leaning.', instructionHe: 'שמור מרפקים קרובים לצלעות ולחץ מטה בלי להישען.' },
-  { id: 'preacher-curl', focus: 'arms', name: 'Preacher Curl Machine', nameHe: 'כפיפת מרפקים במכונת פריצ׳ר', equipment: 'Preacher curl machine', equipmentHe: 'מכונת פריצ׳ר', instruction: 'Keep the upper arms on the pad and curl through a smooth range.', instructionHe: 'שמור זרועות על הכרית וכפוף בטווח חלק.' },
-  { id: 'hammer-curl', focus: 'arms', name: 'Dumbbell Hammer Curl', nameHe: 'כפיפת פטיש עם משקולות', equipment: 'Dumbbells', equipmentHe: 'משקולות יד', instruction: 'Curl with palms facing each other and avoid swinging the torso.', instructionHe: 'כפוף כשהכפות פונות זו לזו והימנע מתנופת גוף.' },
-
-  { id: 'cable-crunch',        focus: 'abs',       name: 'Cable Crunch',              nameHe: 'כפיפות בטן בכבל',          equipment: 'Cable rope',                  equipmentHe: 'חבל בכבל',                   instruction: 'Round the upper back gently toward the hips and avoid pulling with the arms.', instructionHe: 'עגל את הגב העליון בעדינות לכיוון האגן ואל תמשוך עם הידיים.' },
-  { id: 'hanging-knee-raise',  focus: 'abs',       name: 'Hanging Knee Raise',        nameHe: 'הרמת ברכיים בתלייה',        equipment: 'Captain chair or pull-up bar', equipmentHe: 'כיסא קפטן או מוט מתח',     instruction: 'Lift knees with control and stop if the lower back feels uncomfortable.', instructionHe: 'הרם ברכיים בשליטה ועצור אם הגב התחתון לא נוח.' },
-  { id: 'torso-rotation',      focus: 'abs',       name: 'Torso Rotation Machine',    nameHe: 'מכונת רוטציה לבטן',         equipment: 'Torso rotation machine',      equipmentHe: 'מכונת רוטציה',              instruction: 'Use a light load and rotate through a controlled, pain-free range.', instructionHe: 'בחר משקל קל וסובב בטווח נשלט וללא כאב.' },
-  { id: 'ab-wheel',            focus: 'abs',       name: 'Ab Wheel Rollout',          nameHe: 'גלגל בטן',                  equipment: 'Ab wheel',                    equipmentHe: 'גלגל בטן',                   instruction: 'Roll out slowly keeping hips down and return without arching.', instructionHe: 'גלגלו לאט תוך שמירת אגן נמוך וחזרו בלי להקשית.' },
-
-  // Additional full-body exercises for the gym builder
-  { id: 'romanian-deadlift',   focus: 'full',      name: 'Romanian Deadlift',         nameHe: 'דדליפט רומני',               equipment: 'Barbell or dumbbells',        equipmentHe: 'בר או משקולות',              instruction: 'Hinge at the hips, push them back and lower the weight along your legs.', instructionHe: 'דחפו את האגן לאחור והורידו את המשקל לאורך הרגליים.' },
-  { id: 'pull-up',             focus: 'full',      name: 'Pull-Up',                   nameHe: 'מתח',                        equipment: 'Pull-up bar',                 equipmentHe: 'מוט מתח',                    instruction: 'Start from a dead hang and pull your chest to the bar.', instructionHe: 'התחילו מתלייה מלאה ומשכו את החזה לכיוון המוט.' },
-  { id: 'chin-up',             focus: 'back',      name: 'Chin-Up',                   nameHe: 'צ׳ין-אפ (אחיזה הפוכה)',      equipment: 'Pull-up bar',                 equipmentHe: 'מוט מתח',                    instruction: 'Supinated grip, pull up until chin clears the bar.', instructionHe: 'אחיזה הפוכה, משכו עד שהסנטר עולה מעל המוט.' },
-  { id: 't-bar-row',           focus: 'back',      name: 'T-Bar Row',                 nameHe: 'חתירה טי-בר',                equipment: 'T-bar row machine',           equipmentHe: 'מכונת חתירה טי-בר',          instruction: 'Hinge over the bar and pull with elbows close to the body.', instructionHe: 'הטו מעל המוט ומשכו עם המרפקים קרובים לגוף.' },
-  { id: 'lat-pullover',        focus: 'back',      name: 'Lat Pullover Machine',      nameHe: 'מכונת פולאובר',              equipment: 'Lat pullover machine',        equipmentHe: 'מכונת פולאובר',              instruction: 'Extend arms overhead and pull down through a full arc, squeezing lats.', instructionHe: 'פשטו ידיים מעל הראש ומשכו למטה בקשת מלאה, סחטו גב.' },
-
-  { id: 'hack-squat',          focus: 'legs',      name: 'Hack Squat',                nameHe: 'סקוואט האק',                 equipment: 'Hack squat machine',          equipmentHe: 'מכונת האק סקוואט',           instruction: 'Keep back against the pad, lower until thighs are parallel and drive through heels.', instructionHe: 'שמרו גב על הכרית, רדו עד שהירכיים מקבילות ודחפו דרך העקבים.' },
-  { id: 'hip-abduction',       focus: 'legs',      name: 'Hip Abduction Machine',     nameHe: 'מכונת הרחקת ירך',            equipment: 'Hip abduction machine',       equipmentHe: 'מכונת הרחקת ירך',            instruction: 'Push knees outward against the pads with controlled movement.', instructionHe: 'דחפו ברכיים החוצה כנגד הכריות בתנועה מבוקרת.' },
-  { id: 'hip-adduction',       focus: 'legs',      name: 'Hip Adduction Machine',     nameHe: 'מכונת קירוב ירך',            equipment: 'Hip adduction machine',       equipmentHe: 'מכונת קירוב ירך',            instruction: 'Squeeze knees together against resistance and release slowly.', instructionHe: 'סחטו ברכיים יחד כנגד ההתנגדות ושחררו לאט.' },
-  { id: 'seated-calf-raise-m', focus: 'legs',      name: 'Seated Calf Raise Machine', nameHe: 'מכונת עליות תאומים ישיבה',   equipment: 'Seated calf raise machine',   equipmentHe: 'מכונת עליות תאומים ישיבה',   instruction: 'Full range: rise high, pause, and lower slowly below the step.', instructionHe: 'טווח מלא: עלו גבוה, עצרו, ורדו לאט מתחת למדרגה.' },
-
-  { id: 'arnold-press',        focus: 'shoulders', name: 'Arnold Press',              nameHe: 'לחיצת ארנולד',               equipment: 'Dumbbells',                   equipmentHe: 'משקולות',                    instruction: 'Start with palms facing you, rotate and press overhead, reverse on the way down.', instructionHe: 'התחלו עם כפות לכיוונכם, סובבו ולחצו מעלה, הפכו בדרך למטה.' },
-  { id: 'dumbbell-lateral',    focus: 'shoulders', name: 'Dumbbell Lateral Raise',    nameHe: 'הרחקת כתף עם משקולות',       equipment: 'Dumbbells',                   equipmentHe: 'משקולות',                    instruction: 'Slight forward lean, raise to shoulder height with a soft elbow.', instructionHe: 'נטייה קלה קדימה, הרימו לגובה כתף עם מרפק רך.' },
-  { id: 'front-raise',         focus: 'shoulders', name: 'Front Raise',               nameHe: 'הרמת ידיים קדמית',           equipment: 'Dumbbells or plate',          equipmentHe: 'משקולות או צלחת',            instruction: 'Raise one or both arms straight in front to shoulder height.', instructionHe: 'הרימו יד אחת או שתיים ישירות קדימה לגובה הכתף.' },
-
-  { id: 'cable-curl',          focus: 'arms',      name: 'Cable Curl',                nameHe: 'כפיפת מרפקים בכבל',          equipment: 'Low cable pulley',            equipmentHe: 'פולי תחתון',                 instruction: 'Keep elbows pinned and curl the cable bar to shoulder level.', instructionHe: 'קבעו מרפקים וכופפו את מוט הכבל לגובה הכתף.' },
-  { id: 'overhead-triceps',    focus: 'arms',      name: 'Overhead Triceps Extension', nameHe: 'פשיטת מרפקים מעל הראש',    equipment: 'Cable or dumbbell',           equipmentHe: 'כבל או משקולת',              instruction: 'Hold weight behind head, extend elbows upward, keep upper arms still.', instructionHe: 'החזיקו משקל מאחורי הראש, פשטו מרפקים מעלה, שמרו זרועות יציבות.' },
-  { id: 'ez-bar-curl',         focus: 'arms',      name: 'EZ-Bar Curl',               nameHe: 'כפיפת מרפקים עם בר EZ',      equipment: 'EZ curl bar',                 equipmentHe: 'בר EZ',                      instruction: 'Use a semi-supinated grip and curl through full range without swinging.', instructionHe: 'השתמשו באחיזה חצי-הפוכה וכופפו בטווח מלא בלי תנופה.' },
-  { id: 'close-grip-press',    focus: 'chest',     name: 'Close-Grip Bench Press',    nameHe: 'לחיצת חזה אחיזה צרה',        equipment: 'Barbell or Smith machine',    equipmentHe: 'בר או מכונת סמית',           instruction: 'Grip inside shoulder-width, lower to lower chest and press up.', instructionHe: 'אחיזה בתוך רוחב כתפיים, הורידו לחזה תחתון ולחצו מעלה.' },
 ]
 
 // Dumbbell alternatives for machine exercises — shown when user taps "No machine"
@@ -553,12 +491,29 @@ function wgerToGymTemplate(ex: WgerExercise): GymExerciseTemplate {
   }
 }
 
+/** Convert an ExerciseDB PoolExercise to our internal GymExerciseTemplate */
+function poolToGymTemplate(ex: PoolExercise, focus: GymFocus): GymExerciseTemplate {
+  return {
+    id: `api-${ex.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}`,
+    focus,
+    name: ex.name,
+    nameHe: ex.name,
+    equipment: ex.equipments.join(', ') || 'gym equipment',
+    equipmentHe: ex.equipments.join(', ') || 'ציוד חדר כושר',
+    imageUrl: ex.gifUrl || undefined,
+    instruction: `Perform ${ex.name} with controlled movement through the full range of motion.`,
+    instructionHe: `בצע ${ex.name} בתנועה מבוקרת וטווח מלא.`,
+  }
+}
+
 function selectGymExerciseTemplates(
   focuses: GymFocus[],
   count: number,
   wgerPool: GymExerciseTemplate[] = [],
+  apiPool: GymExerciseTemplate[] = [],
 ) {
-  const pool = wgerPool.length > 0 ? wgerPool : GYM_EXERCISES
+  // Priority: wger API > ExerciseDB API > static fallback
+  const pool = wgerPool.length > 0 ? wgerPool : apiPool.length > 0 ? apiPool : GYM_EXERCISES_FALLBACK
   const normalizedFocuses: GymFocus[] = focuses.length > 0 ? focuses : ['full']
   const buckets = normalizedFocuses.map(focus => {
     const byFocus = pool.filter(exercise => exercise.focus === focus)
@@ -566,7 +521,7 @@ function selectGymExerciseTemplates(
   })
 
   // Fallback bucket: everything in pool
-  const fallbackPool = pool.length > 0 ? pool : GYM_EXERCISES
+  const fallbackPool = pool.length > 0 ? pool : GYM_EXERCISES_FALLBACK
 
   const selected: GymExerciseTemplate[] = []
   let cursor = 0
@@ -845,7 +800,9 @@ function buildGymWorkout({
   profile,
   progress,
   wgerPool = [],
+  apiPool = [],
 }: {
+  apiPool?: GymExerciseTemplate[]
   duration: GymDuration
   focuses: GymFocus[]
   goal: GymGoal
@@ -858,7 +815,7 @@ function buildGymWorkout({
   const repSeconds = prescription.reps * 4   // ~4 sec/rep on machines
   const exerciseCount = calcGymExerciseCount(duration, prescription.sets, repSeconds, prescription.restSeconds)
   const safeFocuses: GymFocus[] = focuses.length > 0 ? focuses : ['full']
-  const templates = selectGymExerciseTemplates(safeFocuses, exerciseCount, wgerPool)
+  const templates = selectGymExerciseTemplates(safeFocuses, exerciseCount, wgerPool, apiPool)
   const focusNamesHe = getGymFocusNames(safeFocuses, 'he')
   const focusNamesEn = getGymFocusNames(safeFocuses, 'en')
   const goalHe = getGymGoalName(goal, 'he')
@@ -901,7 +858,7 @@ function getGymBuilderText(language: 'en' | 'he') {
     return {
       duration: 'כמה זמן עבודה בחדר כושר יש לך?',
       durationNote: 'זמן העבודה כולל את כל המנוחות בין הסטים. חימום ומתיחות לא נספרים בזמן הזה.',
-      empty: 'בחר מטרה, כמה אזורי גוף וזמן אימון. SmartFit יבנה אימון חדר כושר לפי ההתקדמות שלך.',
+      empty: 'בחר מטרה, כמה אזורי גוף וזמן אימון. Ascend AI יבנה אימון חדר כושר לפי ההתקדמות שלך.',
       equipment: 'ציוד מותאם: מכונות, כבלים, ספסל ומשקולות חופשיות לפי התרגילים שנבחרו.',
       focus: 'על מה לעבוד? אפשר לבחור כמה אזורים',
       generate: 'צור אימון חדר כושר',
@@ -918,7 +875,7 @@ function getGymBuilderText(language: 'en' | 'he') {
   return {
     duration: 'How much gym work time do you have?',
     durationNote: 'Work time includes all rest periods between sets. Warm-up and stretching are outside this time.',
-    empty: 'Choose a goal, multiple body areas, and a duration. SmartFit will build a gym workout based on your progress.',
+    empty: 'Choose a goal, multiple body areas, and a duration. Ascend AI will build a gym workout based on your progress.',
     equipment: 'Adapted equipment: machines, cables, bench, and free weights according to the selected exercises.',
     focus: 'What should we train? You can select multiple areas',
     generate: 'Create Gym Workout',
@@ -1077,6 +1034,7 @@ function GymWorkoutBuilderPanel({
   gymFocuses,
   gymGoal,
   gymProgress,
+  isApiLoading,
   onDurationChange,
   onGenerateWorkout,
   onGoalChange,
@@ -1088,6 +1046,7 @@ function GymWorkoutBuilderPanel({
   gymFocuses: GymFocus[]
   gymGoal: GymGoal
   gymProgress: GymProgressSummary
+  isApiLoading: boolean
   onDurationChange: (duration: GymDuration) => void
   onGenerateWorkout: () => void
   onGoalChange: (goal: GymGoal) => void
@@ -1155,6 +1114,11 @@ function GymWorkoutBuilderPanel({
         <span>{getGymProgressNote(gymProgress, language)}</span>
       </p>
 
+      {isApiLoading && (
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textAlign: 'center', marginBottom: 6 }}>
+          {isHebrew ? '⏳ טוען תרגילים...' : '⏳ Loading exercises...'}
+        </p>
+      )}
       <button className="btn-primary btn-start" onClick={() => { onGenerateWorkout(); setShowSettings(false) }}>
         {text.generate}
       </button>
@@ -1195,10 +1159,7 @@ function GymWorkoutBuilderPanel({
             return (
               <li key={`generated-gym-exercise-${exercise.id}-${index}`} className="exercise-list-item gym-exercise-item">
                 <div className="exercise-list-visual">
-                  {exercise.imageUrl
-                    ? <img src={exercise.imageUrl} alt={exercise.name} className="exercise-wger-img" loading="lazy" />
-                    : <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
-                  }
+                  <ExerciseAnimation compact hideMuscles exerciseName={showAlt && altData ? altData.name : exercise.name} />
                   <span className="exercise-num">{index + 1}</span>
                 </div>
                 <div className="exercise-list-info">
@@ -1242,6 +1203,7 @@ function GymWorkoutBuilderPanel({
 }
 
 function SelectWorkout({
+  apiGymLoading,
   generatedGymWorkout,
   gymDuration,
   gymFocuses,
@@ -1259,6 +1221,7 @@ function SelectWorkout({
   onStartAerobic,
   onToggleGymFocus,
 }: {
+  apiGymLoading: boolean
   generatedGymWorkout: Workout | null
   gymDuration: GymDuration
   gymFocuses: GymFocus[]
@@ -1328,6 +1291,7 @@ function SelectWorkout({
           gymFocuses={gymFocuses}
           gymGoal={gymGoal}
           gymProgress={gymProgress}
+          isApiLoading={apiGymLoading}
           onDurationChange={onGymDurationChange}
           onGenerateWorkout={onGenerateGymWorkout}
           onGoalChange={onGymGoalChange}
@@ -1352,10 +1316,7 @@ function SelectWorkout({
             {adjustedExercises.map((exercise, index) => (
               <li key={`workout-exercise-${selectedWorkout.id}-${exercise.id}-${index}`} className="exercise-list-item">
                 <div className="exercise-list-visual">
-                  {exercise.imageUrl
-                    ? <img src={exercise.imageUrl} alt={exercise.name} className="exercise-wger-img" loading="lazy" />
-                    : <ExerciseAnimation compact hideMuscles exerciseName={exercise.name} />
-                  }
+                  <ExerciseAnimation compact hideMuscles exerciseName={exercise.apiName ?? exercise.name} gifUrl={exercise.imageUrl} />
                   <span className="exercise-num">{index + 1}</span>
                 </div>
                 <div className="exercise-list-info">
@@ -1475,7 +1436,7 @@ function CountdownOverlay({ value }: { value: number }) {
 }
 
 function RestTimer({ seconds, onDone, onSkip }: { seconds: number; onDone: () => void; onSkip: () => void }) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const [remaining, setRemaining] = useState(seconds)
 
   useEffect(() => {
@@ -1484,12 +1445,18 @@ function RestTimer({ seconds, onDone, onSkip }: { seconds: number; onDone: () =>
 
   useEffect(() => {
     if (remaining <= 0) {
+      // Send notification if the user switched away from the app
+      if (document.visibilityState === 'hidden') {
+        const title = language === 'he' ? '💪 זמן לחזור לאימון!' : '💪 Rest is over!'
+        const body  = language === 'he' ? 'זמן המנוחה נגמר — חזור לאימון 💪' : 'Rest time is up — back to your workout!'
+        sendNotification(title, body)
+      }
       onDone()
       return
     }
     const timer = window.setTimeout(() => setRemaining(value => value - 1), 1000)
     return () => window.clearTimeout(timer)
-  }, [remaining, onDone])
+  }, [remaining, onDone, language])
 
   return (
     <div className="rest-timer-overlay">
@@ -1667,11 +1634,21 @@ export default function WorkoutPage() {
   const [setIndex, setSetIndex] = useState(0)
   const [showSkip, setShowSkip] = useState(false)
   const [lastFeedback, setLastFeedback] = useState<string | null>(null)
+  const [currentWeight, setCurrentWeight] = useState('')
+  const exerciseWeightsRef = useRef<Record<string, number>>({})
   const gymProgress = useMemo(() => analyzeGymProgress(getWorkoutProgress(), profile), [profile])
+  const lastWorkoutWeights = useMemo(
+    () => getLastWorkoutWeights(selectedChoice === 'gym' ? 'gym' : selectedChoice),
+    [selectedChoice]
+  )
 
   // wger exercise pools — loaded async and cached in localStorage by wgerService
   const [wgerGymPool, setWgerGymPool] = useState<GymExerciseTemplate[]>([])
   const [wgerHomeCache, setWgerHomeCache] = useState<Partial<Record<string, WgerExercise[]>>>({})
+
+  // ExerciseDB API pool — loaded async, falls back to GYM_EXERCISES_FALLBACK
+  const [apiGymPool, setApiGymPool] = useState<GymExerciseTemplate[]>([])
+  const [apiGymLoading, setApiGymLoading] = useState(false)
 
   // Live heart rate from BLE wearable
   const [liveHR, setLiveHR] = useState<number>(() => getCurrentHR())
@@ -1732,6 +1709,34 @@ export default function WorkoutPage() {
     fetchWgerPool(categoryIds)
       .then(exercises => setWgerGymPool(exercises.map(wgerToGymTemplate)))
       .catch(() => {/* silently fall back to static pool */})
+  }, [gymFocuses])
+
+  // Pre-fetch ExerciseDB exercises for the selected gym focuses
+  useEffect(() => {
+    let cancelled = false
+    setApiGymLoading(true)
+    const uniqueFocuses = gymFocuses.filter(f => f !== 'full')
+    const categoriesToFetch: ExerciseCategory[] = uniqueFocuses.length > 0
+      ? uniqueFocuses as ExerciseCategory[]
+      : ['chest', 'back', 'legs', 'shoulders', 'arms', 'abs'] as ExerciseCategory[]
+
+    Promise.all(
+      categoriesToFetch.map(cat =>
+        getExercisesForCategory(cat, 10)
+          .then(exs => exs.map(ex => poolToGymTemplate(ex, cat as GymFocus)))
+          .catch((): GymExerciseTemplate[] => [])
+      )
+    ).then(results => {
+      if (!cancelled) {
+        const all = results.flat()
+        if (all.length > 0) setApiGymPool(all)
+        setApiGymLoading(false)
+      }
+    }).catch(() => {
+      if (!cancelled) setApiGymLoading(false)
+    })
+
+    return () => { cancelled = true }
   }, [gymFocuses])
 
   // Pre-fetch wger exercises for the current home category
@@ -1816,6 +1821,7 @@ export default function WorkoutPage() {
 
   const handleGenerateGymWorkout = useCallback(() => {
     const workout = buildGymWorkout({
+      apiPool: apiGymPool,
       duration: gymDuration,
       focuses: gymFocuses,
       goal: gymGoal,
@@ -1827,7 +1833,7 @@ export default function WorkoutPage() {
     setSelectedWorkout(workout)
     setSelectedChoice('gym')
     resetWorkoutState()
-  }, [gymDuration, gymFocuses, gymGoal, profile, resetWorkoutState, wgerGymPool])
+  }, [apiGymPool, gymDuration, gymFocuses, gymGoal, profile, resetWorkoutState, wgerGymPool])
 
   const finishWorkout = useCallback((cardioSummary?: CardioSummary) => {
     const completionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -1866,6 +1872,7 @@ export default function WorkoutPage() {
     } else {
       saveCompletedWorkout({
         duration: completedDuration,
+        exerciseWeights: Object.keys(exerciseWeightsRef.current).length ? { ...exerciseWeightsRef.current } : undefined,
         feeling: lastFeedback ?? undefined,
         id: completionId,
         type: selectedChoice,
@@ -1930,6 +1937,14 @@ export default function WorkoutPage() {
 
   // For exercises without a timer — just go straight to rest
   const handleSetFinished = () => {
+    // Save weight for this exercise before advancing
+    if (currentEx && currentWeight.trim()) {
+      const w = parseFloat(currentWeight.replace(',', '.'))
+      if (Number.isFinite(w) && w > 0) {
+        exerciseWeightsRef.current[currentEx.name] = w
+      }
+    }
+    setCurrentWeight('')
     goToNext()
   }
 
@@ -1947,6 +1962,7 @@ export default function WorkoutPage() {
   if (phase === 'select') {
     return (
       <SelectWorkout
+        apiGymLoading={apiGymLoading}
         generatedGymWorkout={generatedGymWorkout}
         gymDuration={gymDuration}
         gymFocuses={gymFocuses}
@@ -2027,11 +2043,16 @@ export default function WorkoutPage() {
       <p className="exercise-counter">{t('exercise')} {exIndex + 1} {t('of')} {total}</p>
 
       <div className="exercise-focus-card">
-        {currentEx.imageUrl
-          ? <img src={currentEx.imageUrl} alt={currentEx.name} className="exercise-focus-wger-img" loading="lazy" />
-          : <ExerciseAnimation exerciseName={currentEx.name} />
-        }
+        <ExerciseAnimation exerciseName={currentEx.apiName ?? currentEx.name} gifUrl={currentEx.imageUrl} isActive />
         <h2 className="exercise-focus-name">{isHebrew ? currentEx.nameHe : currentEx.name}</h2>
+        {/* Progressive overload hint */}
+        {lastWorkoutWeights[currentEx.name] != null && (
+          <p style={{ fontSize: 12, color: '#a5b4fc', margin: '2px 0 4px', textAlign: 'center' }}>
+            {isHebrew
+              ? `⬆️ בפעם שעברה הרמת ${lastWorkoutWeights[currentEx.name]} ק"ג — נסה ${Math.round((lastWorkoutWeights[currentEx.name] + 2.5) * 2) / 2}?`
+              : `⬆️ Last time: ${lastWorkoutWeights[currentEx.name]} kg — try ${Math.round((lastWorkoutWeights[currentEx.name] + 2.5) * 2) / 2}?`}
+          </p>
+        )}
         <p className="exercise-focus-sets">
           {t('set')} {setIndex + 1} {t('of')} {currentEx.sets}
           {' — '}
@@ -2060,6 +2081,20 @@ export default function WorkoutPage() {
         />
       ) : (
         <div className="set-done-wrap">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, justifyContent: 'center' }}>
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder={isHebrew ? 'משקל (ק"ג)' : 'Weight (kg)'}
+              value={currentWeight}
+              onChange={e => setCurrentWeight(e.target.value)}
+              style={{
+                width: 110, padding: '6px 10px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                color: '#fff', fontSize: 13, textAlign: 'center',
+              }}
+            />
+          </div>
           <button className="btn-set-done" onClick={handleSetFinished}>
             {isHebrew ? '✓ סיימתי' : '✓ Done'}
           </button>

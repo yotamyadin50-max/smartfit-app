@@ -35,6 +35,8 @@ export interface Exercise {
   instructionHe: string
   coaching?: ExerciseCoachingDetails
   imageUrl?: string
+  /** Override name used when searching ExerciseDB/wger for the GIF */
+  apiName?: string
 }
 
 export interface Workout {
@@ -104,14 +106,14 @@ export const mockWorkouts: Workout[] = [
     summary: 'Core stability, lower abs, obliques, and controlled trunk work.',
     summaryHe: 'עבודה על יציבות ליבה, בטן תחתונה, אלכסוניים ושליטה בגוף.',
     exercises: [
-      { id: 'abs-1', name: 'Dead Bug',          nameHe: 'דד באג',             sets: 3, reps: 12, restSeconds: 30, instruction: 'Keep your lower back down while alternating opposite arm and leg.', instructionHe: 'הצמידו גב תחתון לרצפה והחליפו יד ורגל נגדית בשליטה.' },
+      { id: 'abs-1', name: 'Dead Bug', apiName: 'leg raises', nameHe: 'דד באג',             sets: 3, reps: 12, restSeconds: 30, instruction: 'Keep your lower back down while alternating opposite arm and leg.', instructionHe: 'הצמידו גב תחתון לרצפה והחליפו יד ורגל נגדית בשליטה.' },
       { id: 'abs-2', name: 'Reverse Crunch',    nameHe: 'כפיפות בטן הפוכות', sets: 3, reps: 14, restSeconds: 35, instruction: 'Curl hips toward your ribs without swinging your legs.', instructionHe: 'קרבו את האגן לכיוון הצלעות בלי תנופה מהרגליים.' },
       { id: 'abs-3', name: 'Side Plank',        nameHe: 'פלאנק צד',           sets: 2, reps: 30, durationSeconds: 30, restSeconds: 30, instruction: 'Stack shoulders and hips, then hold each side with a tight core.', instructionHe: 'יישרו כתפיים ואגן והחזיקו כל צד עם ליבה אסופה.' },
       { id: 'abs-4', name: 'Mountain Climbers', nameHe: 'מטפס הרים',          sets: 3, reps: 20, restSeconds: 30, instruction: 'Drive knees forward from plank while keeping hips low.', instructionHe: 'מתנוחת פלאנק הביאו ברכיים קדימה בקצב, ושמרו אגן נמוך.' },
       { id: 'abs-5', name: 'Bicycle Crunch',    nameHe: 'כפיפות אופניים',    sets: 3, reps: 20, restSeconds: 30, instruction: 'Rotate elbow to opposite knee while fully extending the other leg.', instructionHe: 'סובבו מרפק לברך הנגדית תוך פשיטת הרגל השנייה לגמרי.' },
       { id: 'abs-6', name: 'Leg Raises',        nameHe: 'הרמות רגליים',       sets: 3, reps: 12, restSeconds: 35, instruction: 'Lie flat, press lower back to the floor and raise legs to 90 degrees.', instructionHe: 'שכבו שטוח, הצמידו גב תחתון לרצפה והרימו רגליים ל-90 מעלות.' },
       { id: 'abs-7', name: 'Russian Twist',     nameHe: 'טוויסט רוסי',       sets: 3, reps: 20, restSeconds: 30, instruction: 'Lean back at 45 degrees and rotate the torso side to side.', instructionHe: 'הישענו לאחור ב-45 מעלות וסובבו את הגוף מצד לצד.' },
-      { id: 'abs-8', name: 'Hollow Hold',       nameHe: 'החזקת חלול',        sets: 3, reps: 30, durationSeconds: 30, restSeconds: 35, instruction: 'Press your lower back to the floor, lift shoulders and legs slightly and hold.', instructionHe: 'הצמידו גב תחתון לרצפה, הרימו כתפיים ורגליים מעט והחזיקו.' },
+      { id: 'abs-8', name: 'Hollow Hold', apiName: 'plank', nameHe: 'החזקת חלול',        sets: 3, reps: 30, durationSeconds: 30, restSeconds: 35, instruction: 'Press your lower back to the floor, lift shoulders and legs slightly and hold.', instructionHe: 'הצמידו גב תחתון לרצפה, הרימו כתפיים ורגליים מעט והחזיקו.' },
     ],
   },
 
@@ -158,7 +160,7 @@ export const mockWorkouts: Workout[] = [
       { id: 'legs-4', name: 'Calf Raises',           nameHe: 'עליות תאומים',      sets: 3, reps: 18, restSeconds: 30, instruction: 'Rise onto your toes, pause, then lower slowly.', instructionHe: 'עלו לקצות האצבעות, עצרו רגע ורדו לאט.' },
       { id: 'legs-5', name: 'Bulgarian Split Squat', nameHe: 'סקוואט בולגרי',     sets: 3, reps: 8,  restSeconds: 60, instruction: 'Rear foot elevated, lower until front thigh is parallel to the floor.', instructionHe: 'רגל אחורית מורמת, רדו עד שהירך הקדמית מקבילה לרצפה.' },
       { id: 'legs-6', name: 'Hip Thrust',            nameHe: 'הרמת אגן',          sets: 3, reps: 14, restSeconds: 45, instruction: 'Upper back on bench, drive hips up and squeeze glutes hard at the top.', instructionHe: 'גב עליון על ספסל, הרימו אגן וסחטו ישבן חזק בחלק העליון.' },
-      { id: 'legs-7', name: 'Wall Sit',              nameHe: 'ישיבת קיר',         sets: 3, reps: 40, durationSeconds: 40, restSeconds: 45, instruction: 'Back flat against the wall, thighs parallel to the floor, hold.', instructionHe: 'גב צמוד לקיר, ירכיים מקבילות לרצפה, החזיקו.' },
+      { id: 'legs-7', name: 'Wall Sit', apiName: 'squat', nameHe: 'ישיבת קיר',         sets: 3, reps: 40, durationSeconds: 40, restSeconds: 45, instruction: 'Back flat against the wall, thighs parallel to the floor, hold.', instructionHe: 'גב צמוד לקיר, ירכיים מקבילות לרצפה, החזיקו.' },
       { id: 'legs-8', name: 'Step-Up',               nameHe: 'עלייה על כיסא',     sets: 3, reps: 10, restSeconds: 40, instruction: 'Step onto a chair or box with control, drive through the heel.', instructionHe: 'עלו על כיסא או תיבה בשליטה, דחפו דרך העקב.' },
     ],
   },
@@ -181,8 +183,8 @@ export const mockWorkouts: Workout[] = [
       { id: 'back-3', name: 'Bent-Over Row',         nameHe: 'חתירה מכופף',      sets: 4, reps: 10, restSeconds: 60, instruction: 'Hinge at hips, row both dumbbells to lower ribs, keep back flat.', instructionHe: 'כופפו מהאגן, חתרו שתי משקולות לצלעות תחתונות, גב ישר.' },
       { id: 'back-4', name: 'Single Leg Deadlift',   nameHe: 'דדליפט רגל אחת',  sets: 3, reps: 10, restSeconds: 50, instruction: 'Balance on one leg, hinge forward and lower the weight toward the floor.', instructionHe: 'עמדו על רגל אחת, הטו קדימה והורידו את המשקל לכיוון הרצפה.' },
       { id: 'back-5', name: 'Renegade Row',          nameHe: 'חתירה פלאנק',      sets: 3, reps: 8,  restSeconds: 60, instruction: 'In plank on dumbbells, row one arm up while stabilising with the other.', instructionHe: 'בפלאנק עם משקולות, חתרו יד אחת למעלה בזמן שהשנייה מייצבת.' },
-      { id: 'back-6', name: 'Back Extension Hold',   nameHe: 'החזקת פשיטת גב',  sets: 3, reps: 30, durationSeconds: 30, restSeconds: 35, instruction: 'From lying face down, raise chest off the floor and hold.', instructionHe: 'משכיבה על הבטן, הרימו חזה מהרצפה והחזיקו.' },
-      { id: 'back-7', name: 'Inchworm',              nameHe: 'תולעת',            sets: 3, reps: 8,  restSeconds: 40, instruction: 'Walk hands out to plank, hold a moment, then walk feet to hands.', instructionHe: 'הלכו עם הידיים לפלאנק, עצרו רגע, ואחר כך הלכו עם הרגליים לידיים.' },
+      { id: 'back-6', name: 'Back Extension Hold', apiName: 'superman', nameHe: 'החזקת פשיטת גב',  sets: 3, reps: 30, durationSeconds: 30, restSeconds: 35, instruction: 'From lying face down, raise chest off the floor and hold.', instructionHe: 'משכיבה על הבטן, הרימו חזה מהרצפה והחזיקו.' },
+      { id: 'back-7', name: 'Inchworm', apiName: 'bear crawl',           nameHe: 'תולעת',            sets: 3, reps: 8,  restSeconds: 40, instruction: 'Walk hands out to plank, hold a moment, then walk feet to hands.', instructionHe: 'הלכו עם הידיים לפלאנק, עצרו רגע, ואחר כך הלכו עם הרגליים לידיים.' },
     ],
   },
 
