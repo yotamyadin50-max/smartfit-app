@@ -329,6 +329,7 @@ export default function SocialPage() {
   const [notifications, setNotifications] = useState<FriendNotification[]>([])
   const [posts, setPosts] = useState<WorkoutPost[]>([])
   const [postsLoading, setPostsLoading] = useState(true)
+  const [postsError, setPostsError] = useState(false)
   const [inviteLink, setInviteLink] = useState('')
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -463,20 +464,27 @@ export default function SocialPage() {
 
   const refresh = useCallback(async () => {
     if (!user) return
-    const [nextFriends, nextNotifications, nextPosts] = await Promise.all([
-      loadFriends(user.id),
-      loadUnreadNotifications(user.id),
-      loadWorkoutFeed(user.id),
-    ])
-    // Play OS notification sound when NEW unread notifications arrive
-    if (nextNotifications.length > prevNotifCountRef.current) {
-      playNotificationSound()
+    setPostsError(false)
+    try {
+      const [nextFriends, nextNotifications, nextPosts] = await Promise.all([
+        loadFriends(user.id),
+        loadUnreadNotifications(user.id),
+        loadWorkoutFeed(user.id),
+      ])
+      // Play OS notification sound when NEW unread notifications arrive
+      if (nextNotifications.length > prevNotifCountRef.current) {
+        playNotificationSound()
+      }
+      prevNotifCountRef.current = nextNotifications.length
+      setFriends(nextFriends)
+      setNotifications(nextNotifications)
+      setPosts(nextPosts)
+    } catch (err) {
+      console.warn('[SocialPage] feed load failed', err)
+      setPostsError(true)
+    } finally {
+      setPostsLoading(false)
     }
-    prevNotifCountRef.current = nextNotifications.length
-    setFriends(nextFriends)
-    setNotifications(nextNotifications)
-    setPosts(nextPosts)
-    setPostsLoading(false)
   }, [user])
 
   useEffect(() => {
@@ -810,6 +818,18 @@ export default function SocialPage() {
                 <p style={{ color: 'rgba(255,255,255,0.35)', margin: 0, fontSize: 13 }}>
                   {t('Loading feed…', 'טוען פיד…')}
                 </p>
+              </div>
+            ) : postsError ? (
+              <div style={{ ...card, textAlign: 'center', padding: 28, border: '1px solid rgba(239,68,68,0.3)' }}>
+                <p style={{ color: '#ef4444', margin: '0 0 10px', fontSize: 13 }}>
+                  {t('Could not load feed. Check your connection.', 'לא ניתן לטעון את הפיד. בדוק את החיבור.')}
+                </p>
+                <button
+                  style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: 'inherit', cursor: 'pointer' }}
+                  onClick={() => { setPostsLoading(true); void refresh() }}
+                >
+                  {t('Retry', 'נסה שוב')}
+                </button>
               </div>
             ) : posts.length === 0 ? (
               <div style={{ ...card, textAlign: 'center', padding: 28 }}>
