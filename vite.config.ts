@@ -8,6 +8,7 @@ import {
   readNodeRequestJson,
   sendJson,
 } from './server/openRouterAi.js'
+import { searchUsdaFoods } from './server/foodSearch.js'
 
 // Security headers added to every dev-server response
 const SECURITY_HEADERS: Record<string, string> = {
@@ -52,6 +53,26 @@ function openRouterDevApi() {
           console.log('SmartFit dev /api/ai status', error?.status || 500)
           const { status, body } = getPublicErrorResponse(error)
           sendJson(res, status, body)
+        }
+      })
+
+      server.middlewares.use('/api/food', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.setHeader('Allow', 'GET')
+          sendJson(res, 405, { error: 'Method not allowed.' })
+          return
+        }
+
+        try {
+          const requestUrl = new URL(req.url || '', 'http://localhost')
+          const result = await searchUsdaFoods(requestUrl.searchParams.get('q') || '')
+          sendJson(res, 200, result)
+        } catch (error) {
+          console.log('Ascend AI dev /api/food status', error?.status || 502)
+          sendJson(res, error?.status || 502, {
+            error: error?.status === 400 ? 'Missing query param ?q=' : 'Could not reach USDA FoodData Central.',
+            status: error?.status || 502,
+          })
         }
       })
     },

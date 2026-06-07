@@ -8,6 +8,7 @@ import {
 } from '../lib/supabaseDb'
 import { getLevelFromXp } from '../lib/animalRanks'
 import { syncProgressFromSupabase } from '../progressStorage'
+import { emitProgressEvent } from '../lib/achievementEvents'
 
 async function getCurrentUserId(): Promise<string | null> {
   if (!isSupabaseConfigured) return null
@@ -19,14 +20,17 @@ export type Goal = 'cut' | 'bulk' | 'fitness' | 'health' | 'endurance' | 'flexib
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced'
 export type WorkoutType = 'gym' | 'home' | 'outdoor'
 export type NutritionPref = 'none' | 'vegetarian' | 'vegan' | 'gluten-free'
+export type DietType = 'vegetarian' | 'vegan' | 'kosher' | 'gluten-free' | 'dairy-free' | 'nut-free'
+export type PainIntensity = 'mild' | 'moderate' | 'severe'
+export type WorkoutTimePreference = 'morning' | 'noon' | 'evening'
 export type Gender = 'male' | 'female' | 'other' | 'prefer_not'
-export type EquipmentOption = 'none' | 'dumbbells' | 'bands' | 'gym'
+export type EquipmentOption = 'none' | 'dumbbells' | 'bands' | 'gym' | 'pullup_bar'
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type DailyActivityLevel = 'low' | 'medium' | 'high'
 export type HabitChallenge = 'start' | 'consistency' | 'time' | 'motivation'
-export type SensitiveArea = 'back' | 'knees' | 'shoulders'
+export type SensitiveArea = 'back' | 'knees' | 'shoulders' | 'neck' | 'elbows' | 'hips' | 'ankles'
 export type WeekDay = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
-export type ScheduleFocus = 'goal' | 'abs' | 'arms' | 'legs' | 'aerobic' | 'rest'
+export type ScheduleFocus = 'goal' | 'abs' | 'arms' | 'legs' | 'back' | 'aerobic' | 'rest'
 export type AgeGroup = 'teen' | 'adult' | 'senior'
 export type DevicePreferences = {
   cardioLocation?: boolean
@@ -47,8 +51,8 @@ export interface UserProfile {
   level?: FitnessLevel
   fitnessLevel: FitnessLevel
   workout_days?: number
-  workout_time?: 10 | 15 | 20 | 30 | 45 | 60
-  workoutDuration: 10 | 15 | 20 | 30 | 45 | 60
+  workout_time?: 10 | 15 | 20 | 30 | 45 | 60 | 75 | 90
+  workoutDuration: 10 | 15 | 20 | 30 | 45 | 60 | 75 | 90
   homeWorkoutDuration?: 10 | 20 | 30 | 45 | 60 | 75 | 90
   gymWorkoutDuration?: 10 | 20 | 30 | 45 | 60 | 75 | 90
   workoutType: WorkoutType
@@ -58,6 +62,7 @@ export interface UserProfile {
   nutritionPref: NutritionPref
   nutrition?: {
     avoidedFoods?: string
+    dietTypes?: DietType[]
     eatsRegularly?: boolean
     likedFoods?: string
     mealsPerDay?: number
@@ -66,6 +71,7 @@ export interface UserProfile {
   health?: {
     energyLevel?: EnergyLevel
     hasPainOrInjuries?: boolean
+    painIntensity?: Partial<Record<SensitiveArea, PainIntensity>>
     sensitiveAreas?: SensitiveArea[]
     sleepHours?: number
   }
@@ -73,10 +79,13 @@ export interface UserProfile {
     dailyActivity?: DailyActivityLevel
     fixedWorkoutTime?: boolean
     hardestPart?: HabitChallenge
+    workoutTimePreference?: WorkoutTimePreference
   }
+  useMetric?: boolean
   devices?: DevicePreferences
   weeklyPlan?: WeeklyPlan
   notificationsEnabled: boolean
+  reminderSound: boolean
   reminderTime: string
   onboardingComplete: boolean
 }
@@ -85,11 +94,13 @@ export interface UserStats {
   xp: number
   level: number
   streak: number
+  streakFreezes: number     // starts at 1; auto-consumed when streak would break
   totalWorkouts: number
+  lastWorkoutDate?: string  // ISO date string "YYYY-MM-DD"
 }
 
 export const WEEK_DAYS: WeekDay[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-export const SCHEDULE_FOCUSES: ScheduleFocus[] = ['goal', 'abs', 'arms', 'legs', 'aerobic', 'rest']
+export const SCHEDULE_FOCUSES: ScheduleFocus[] = ['goal', 'abs', 'arms', 'legs', 'back', 'aerobic', 'rest']
 export const MIN_PROFILE_AGE = 13
 export const MAX_PROFILE_AGE = 90
 export const DEFAULT_PROFILE_AGE = 28
@@ -142,6 +153,7 @@ const DEFAULT_PROFILE: UserProfile = {
   },
   weeklyPlan: DEFAULT_WEEKLY_PLAN,
   notificationsEnabled: false,
+  reminderSound: true,
   reminderTime: '08:00',
   onboardingComplete: false,
 }
@@ -150,6 +162,7 @@ const DEFAULT_STATS: UserStats = {
   xp: 0,
   level: 1,
   streak: 0,
+  streakFreezes: 1,
   totalWorkouts: 0,
 }
 
@@ -157,6 +170,7 @@ const NEW_ACCOUNT_STATS: UserStats = {
   xp: 0,
   level: 1,
   streak: 0,
+  streakFreezes: 1,
   totalWorkouts: 0,
 }
 
@@ -164,13 +178,16 @@ const GOALS: Goal[] = ['cut', 'bulk', 'fitness', 'health', 'endurance', 'flexibi
 const FITNESS_LEVELS: FitnessLevel[] = ['beginner', 'intermediate', 'advanced']
 const WORKOUT_TYPES: WorkoutType[] = ['gym', 'home', 'outdoor']
 const NUTRITION_PREFS: NutritionPref[] = ['none', 'vegetarian', 'vegan', 'gluten-free']
-const WORKOUT_DURATIONS: UserProfile['workoutDuration'][] = [10, 15, 20, 30, 45, 60]
+const WORKOUT_DURATIONS: UserProfile['workoutDuration'][] = [10, 15, 20, 30, 45, 60, 75, 90]
 const GENDERS: Gender[] = ['male', 'female', 'other', 'prefer_not']
-const EQUIPMENT_OPTIONS: EquipmentOption[] = ['none', 'dumbbells', 'bands', 'gym']
+const EQUIPMENT_OPTIONS: EquipmentOption[] = ['none', 'dumbbells', 'bands', 'gym', 'pullup_bar']
 const ENERGY_LEVELS: EnergyLevel[] = ['low', 'medium', 'high']
 const DAILY_ACTIVITY_LEVELS: DailyActivityLevel[] = ['low', 'medium', 'high']
 const HABIT_CHALLENGES: HabitChallenge[] = ['start', 'consistency', 'time', 'motivation']
-const SENSITIVE_AREAS: SensitiveArea[] = ['back', 'knees', 'shoulders']
+const SENSITIVE_AREAS: SensitiveArea[] = ['back', 'knees', 'shoulders', 'neck', 'elbows', 'hips', 'ankles']
+const PAIN_INTENSITIES: PainIntensity[] = ['mild', 'moderate', 'severe']
+const WORKOUT_TIME_PREFS: WorkoutTimePreference[] = ['morning', 'noon', 'evening']
+const DIET_TYPES: DietType[] = ['vegetarian', 'vegan', 'kosher', 'gluten-free', 'dairy-free', 'nut-free']
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object')
@@ -212,7 +229,8 @@ function isProfile(value: unknown): value is UserProfile {
     (weeklyPlan === undefined || isWeeklyPlan(weeklyPlan)) &&
     typeof value.notificationsEnabled === 'boolean' &&
     typeof value.reminderTime === 'string' &&
-    typeof value.onboardingComplete === 'boolean'
+    typeof value.onboardingComplete === 'boolean' &&
+    (value.reminderSound === undefined || typeof value.reminderSound === 'boolean')
   )
 }
 
@@ -244,21 +262,27 @@ function isWorkoutDays(value: unknown): value is number {
 
 function isNutritionProfile(value: unknown) {
   if (!isObject(value)) return false
+  const dietTypes = value.dietTypes
   return (
     (value.eatsRegularly === undefined || typeof value.eatsRegularly === 'boolean') &&
     (value.mealsPerDay === undefined || (typeof value.mealsPerDay === 'number' && Number.isFinite(value.mealsPerDay) && value.mealsPerDay >= 1 && value.mealsPerDay <= 8)) &&
     (value.likedFoods === undefined || typeof value.likedFoods === 'string') &&
     (value.avoidedFoods === undefined || typeof value.avoidedFoods === 'string') &&
-    (value.sensitivities === undefined || typeof value.sensitivities === 'string')
+    (value.sensitivities === undefined || typeof value.sensitivities === 'string') &&
+    (dietTypes === undefined || (Array.isArray(dietTypes) && dietTypes.every(d => DIET_TYPES.includes(d as DietType))))
   )
 }
 
 function isHealthProfile(value: unknown) {
   if (!isObject(value)) return false
   const sensitiveAreas = value.sensitiveAreas
+  const painIntensity = value.painIntensity
   return (
     (value.hasPainOrInjuries === undefined || typeof value.hasPainOrInjuries === 'boolean') &&
     (sensitiveAreas === undefined || (Array.isArray(sensitiveAreas) && sensitiveAreas.every(area => SENSITIVE_AREAS.includes(area as SensitiveArea)))) &&
+    (painIntensity === undefined || (isObject(painIntensity) && Object.entries(painIntensity).every(
+      ([k, v]) => SENSITIVE_AREAS.includes(k as SensitiveArea) && PAIN_INTENSITIES.includes(v as PainIntensity)
+    ))) &&
     (value.energyLevel === undefined || ENERGY_LEVELS.includes(value.energyLevel as EnergyLevel)) &&
     (value.sleepHours === undefined || (typeof value.sleepHours === 'number' && Number.isFinite(value.sleepHours) && value.sleepHours >= 0 && value.sleepHours <= 14))
   )
@@ -269,7 +293,8 @@ function isHabitsProfile(value: unknown) {
   return (
     (value.dailyActivity === undefined || DAILY_ACTIVITY_LEVELS.includes(value.dailyActivity as DailyActivityLevel)) &&
     (value.fixedWorkoutTime === undefined || typeof value.fixedWorkoutTime === 'boolean') &&
-    (value.hardestPart === undefined || HABIT_CHALLENGES.includes(value.hardestPart as HabitChallenge))
+    (value.hardestPart === undefined || HABIT_CHALLENGES.includes(value.hardestPart as HabitChallenge)) &&
+    (value.workoutTimePreference === undefined || WORKOUT_TIME_PREFS.includes(value.workoutTimePreference as WorkoutTimePreference))
   )
 }
 
@@ -412,7 +437,9 @@ function getWorkoutDuration(value?: number): UserProfile['workoutDuration'] | un
   if (value <= 20) return 20
   if (value <= 30) return 30
   if (value <= 45) return 45
-  return 60
+  if (value <= 60) return 60
+  if (value <= 75) return 75
+  return 90
 }
 
 function getWorkoutTypeFromEquipment(equipment?: EquipmentOption[]): WorkoutType | undefined {
@@ -426,22 +453,75 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // true once we've finished loading from Supabase for the current session
   const [cloudSynced, setCloudSynced] = useState(!isSupabaseConfigured)
 
+  // ── Streak integrity check on mount ───────────────────────────────────────
+  // Resets the streak only if the user missed a workout day (not a rest day)
+  // since their last workout.
+  useEffect(() => {
+    setStats(prev => {
+      if (!prev.lastWorkoutDate || prev.streak === 0) return prev
+      const lastDate = new Date(prev.lastWorkoutDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const dayMs = 86400_000
+      const daysDiff = Math.floor((today.getTime() - lastDate.getTime()) / dayMs)
+      if (daysDiff <= 1) return prev // worked out today or yesterday — streak intact
+
+      // Check if any of the days between lastWorkoutDate and today were workout days
+      const plan = profile.weeklyPlan ?? DEFAULT_WEEKLY_PLAN
+      let missedWorkoutDay = false
+      for (let d = 1; d < daysDiff; d++) {
+        const checkDate = new Date(lastDate.getTime() + d * dayMs)
+        const dayKey = WEEK_DAYS[checkDate.getDay()]
+        if (plan[dayKey] !== 'rest') { missedWorkoutDay = true; break }
+      }
+
+      if (missedWorkoutDay) {
+        const freezes = prev.streakFreezes ?? 0
+        if (freezes > 0) {
+          // Auto-consume a freeze — streak survives
+          try { localStorage.setItem('smartfit_streak_freeze_used', '1') } catch {}
+          return { ...prev, streakFreezes: freezes - 1 }
+        }
+        return { ...prev, streak: 0 }
+      }
+      return prev
+    })
+  }, []) // intentionally run only once on mount
+
   // ── Sync from Supabase on login ────────────────────────────────────────────
   useEffect(() => {
     if (!isSupabaseConfigured) return
 
+    // Safety timeout — never block routing for more than 4 seconds.
+    // Important: do NOT cancel this timer early (e.g. after getSession resolves)
+    // because the subsequent DB call (loadUserDataFromSupabase) can also hang
+    // when Supabase is paused/unreachable. The timer must stay alive until we
+    // actually call setCloudSynced(true) ourselves.
+    let settled = false
+    const safetyTimer = setTimeout(() => {
+      if (!settled) { settled = true; setCloudSynced(true) }
+    }, 4000)
+
     // Restore cloud data for an already-logged-in user on mount
     supabase.auth.getSession().then(async ({ data }) => {
+      if (settled) return   // safety timer already fired
       if (!data.session?.user) {
+        settled = true
+        clearTimeout(safetyTimer)
         setCloudSynced(true)   // no session → nothing to load
         return
       }
       const uid = data.session.user.id
       const cloudData = await loadUserDataFromSupabase(uid)
+      if (settled) return   // safety timer fired while DB was loading
+      settled = true
+      clearTimeout(safetyTimer)
       if (cloudData?.profile) setProfile(cloudData.profile)
       if (cloudData?.stats) setStats(cloudData.stats)
       syncProgressFromSupabase(uid)
       setCloudSynced(true)
+    }).catch(() => {
+      if (!settled) { settled = true; clearTimeout(safetyTimer); setCloudSynced(true) }
     })
 
     // Also listen for future sign-in / sign-out events
@@ -496,16 +576,36 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const safeAmount = Math.max(0, amount)
       const newXP = prev.xp + safeAmount
       const newLevel = getLevelFromXp(newXP)
-      const next: UserStats = { ...prev, xp: newXP, level: Math.max(prev.level, newLevel), totalWorkouts: prev.totalWorkouts }
+      // Earn a streak freeze every 500 XP milestone
+      const prevMilestone = Math.floor(prev.xp / 500)
+      const newMilestone  = Math.floor(newXP / 500)
+      const newFreezes = (prev.streakFreezes ?? 0) + (newMilestone - prevMilestone)
+      const next: UserStats = {
+        ...prev,
+        xp: newXP,
+        level: Math.max(prev.level, newLevel),
+        streakFreezes: newFreezes,
+        totalWorkouts: prev.totalWorkouts,
+      }
       getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
+      emitProgressEvent()
       return next
     })
   }, [setStats])
 
   const incrementStreak = useCallback(() => {
     setStats(prev => {
-      const next: UserStats = { ...prev, streak: prev.streak + 1, totalWorkouts: prev.totalWorkouts + 1 }
+      const today = new Date().toISOString().slice(0, 10)
+      // Don't double-count if already logged today
+      const alreadyToday = prev.lastWorkoutDate === today
+      const next: UserStats = {
+        ...prev,
+        streak: alreadyToday ? prev.streak : prev.streak + 1,
+        totalWorkouts: alreadyToday ? prev.totalWorkouts : prev.totalWorkouts + 1,
+        lastWorkoutDate: today,
+      }
       getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
+      emitProgressEvent()
       return next
     })
   }, [setStats])

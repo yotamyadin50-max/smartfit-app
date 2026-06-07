@@ -28,14 +28,21 @@ const englishMeals = [
   ['Tuna potato plate', ['tuna', 'potato', 'vegetables'], 'A simple plate with protein and steady energy.', 'Works well around endurance or general fitness days.'],
 ] as const
 
+const englishCutMeals = [
+  ['Chicken vegetable bowl', ['chicken', 'rice', 'vegetables'], 'A structured plate with protein, vegetables and measured carbohydrates.', 'Fits body-composition goals because it supports fullness without extreme dieting.'],
+  ['Tuna egg salad', ['tuna', 'eggs', 'cucumber', 'tomato'], 'A simple high-protein meal with fresh vegetables.', 'Fits body-composition goals because it keeps the meal filling and easy to repeat.'],
+  ['Greek yogurt with oats', ['yogurt', 'oats', 'banana'], 'A fast meal or snack with protein and steady energy.', 'Fits body-composition goals because it is planned, satisfying and practical.'],
+  ['Lentil vegetable bowl', ['lentils', 'vegetables', 'tahini'], 'A plant-based meal with fiber and protein.', 'Fits body-composition goals because it supports consistent meals and fullness.'],
+] as const
+
 function getEnglishGoalLabel(profile: Partial<UserProfile>) {
   const goals = profile.goals?.length ? profile.goals : [profile.goal ?? 'fitness']
+  if (goals.includes('cut')) return 'balanced body-composition support'
   if (goals.includes('bulk')) return 'strength and muscle support'
   if (goals.includes('endurance')) return 'endurance'
   if (goals.includes('health')) return 'healthy lifestyle'
   if (goals.includes('flexibility')) return 'flexibility and active lifestyle'
   if (goals.includes('consistency')) return 'training consistency'
-  if (goals.includes('cut')) return 'balanced body-composition support'
   return 'general fitness'
 }
 
@@ -59,6 +66,8 @@ function removeBlocked(ingredients: readonly string[], blocked: string[]) {
 
 function generateEnglishWeeklyNutritionPlan(profile: Partial<UserProfile>): WeeklyNutritionPlan {
   const blocked = splitBlocked(profile)
+  const goals = profile.goals?.length ? profile.goals : [profile.goal ?? 'fitness']
+  const mealPool = goals.includes('cut') ? englishCutMeals : englishMeals
   const mealsPerDay = profile.nutrition?.mealsPerDay ?? 3
   const goalLabel = getEnglishGoalLabel(profile)
 
@@ -76,7 +85,7 @@ function generateEnglishWeeklyNutritionPlan(profile: Partial<UserProfile>): Week
       ],
       day,
       meals: englishSlots.map((slot, slotIndex) => {
-        const meal = englishMeals[(dayIndex + slotIndex) % englishMeals.length]
+        const meal = mealPool[(dayIndex + slotIndex) % mealPool.length]
         return {
           description: meal[2],
           goalFit: meal[3],

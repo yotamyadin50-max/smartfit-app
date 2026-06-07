@@ -7,7 +7,7 @@ dotenv.config({ path: '.env.txt' })
 
 const OPENROUTER_URL  = 'https://openrouter.ai/api/v1/chat/completions'
 const HTTP_REFERER    = 'http://localhost:5173'
-const APP_TITLE       = 'SmartFit'
+const APP_TITLE       = 'Ascend AI'
 const TIMEOUT_MS      = 30000
 // Diverse model list — different providers have separate rate-limit pools
 const MODELS = [

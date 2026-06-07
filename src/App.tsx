@@ -5,7 +5,7 @@ import { useUser } from './context/UserContext'
 import { useI18n } from './context/I18nContext'
 import { savePendingInvite, acceptInvite, getPendingInvite, clearPendingInvite } from './lib/friendsService'
 import { syncKnownAppAccess } from './lib/appAccess'
-import { syncScheduledReminders } from './lib/remindersService'
+import { checkInactivityReminder, syncScheduledReminders } from './lib/remindersService'
 
 import AnimatedWaveBackground from './components/AnimatedWaveBackground'
 import AchievementToast from './components/AchievementToast'
@@ -29,6 +29,8 @@ const AIToolsPage = lazy(() => import('./pages/AIToolsPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
 const ProgressPage = lazy(() => import('./pages/ProgressPage'))
 const ShredPage    = lazy(() => import('./pages/ShredPage'))
+const CardioPage   = lazy(() => import('./pages/CardioPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -110,7 +112,7 @@ function DashboardResetGuard() {
       const raw = localStorage.getItem(INACTIVE_KEY)
       if (!raw) return
       const elapsed = Date.now() - parseInt(raw, 10)
-      if (elapsed >= RESET_THRESHOLD_MS) navigate('/dashboard', { replace: true })
+      if (elapsed >= RESET_THRESHOLD_MS && !window.location.pathname.startsWith('/workout')) navigate('/dashboard', { replace: true })
     }
 
     const handleHide = () => localStorage.setItem(INACTIVE_KEY, Date.now().toString())
@@ -144,7 +146,7 @@ function DashboardResetGuard() {
 
 function ReminderScheduler() {
   const { user } = useAuth()
-  const { profile, cloudSynced } = useUser()
+  const { profile, stats, cloudSynced } = useUser()
   const { language } = useI18n()
 
   useEffect(() => {
@@ -152,7 +154,8 @@ function ReminderScheduler() {
     syncScheduledReminders(language === 'he').catch(error => {
       console.log('[Reminders] startup sync failed', error)
     })
-  }, [cloudSynced, language, profile.onboardingComplete, user])
+    checkInactivityReminder(language === 'he', stats.lastWorkoutDate)
+  }, [cloudSynced, language, profile.onboardingComplete, stats.lastWorkoutDate, user])
 
   return null
 }
@@ -201,8 +204,9 @@ export default function App() {
           <Route path="/reminders" element={<ProtectedRoute><RemindersPage /></ProtectedRoute>} />
           <Route path="/wearable"   element={<ProtectedRoute><WearablePage /></ProtectedRoute>} />
           <Route path="/shredding" element={<ProtectedRoute><ShredPage /></ProtectedRoute>} />
+          <Route path="/cardio"    element={<ProtectedRoute><CardioPage /></ProtectedRoute>} />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

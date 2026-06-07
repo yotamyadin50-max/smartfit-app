@@ -2,7 +2,30 @@ import PageHeader from '../components/layout/PageHeader'
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { useI18n } from '../context/I18nContext'
 import { getAgeGuidance, useUser } from '../context/UserContext'
-import { ChatMessage, suggestedQuestions } from '../data/mockChat'
+import type { ChatMessage } from '../data/mockChat'
+import type { Language } from '../context/I18nContext'
+import type { UserProfile } from '../context/UserContext'
+import { getTodayCheckin } from '../lib/dailyCheckin'
+
+function getPersonalizedSuggestions(profile: Partial<UserProfile>, language: Language): string[] {
+  const isHe = language === 'he'
+  const goals = profile.goals?.length ? profile.goals : [profile.goal ?? 'fitness']
+  const level = profile.fitnessLevel ?? profile.level ?? 'beginner'
+
+  if (isHe) {
+    if (goals.includes('cut'))        return ['כמה קלוריות כדאי לאכול ביום?', 'אילו תרגילים הכי טובים לשריפת שומן?', 'מה לאכול לפני ואחרי אימון?', 'כמה פעמים בשבוע כדאי להתאמן?', 'איך שומרים על מוטיבציה?']
+    if (goals.includes('bulk'))       return ['כמה חלבון אני צריך ביום?', 'אילו תרגילים הכי טובים לבניית שריר?', 'מה לאכול אחרי אימון?', 'כמה קלוריות להוסיף לעלייה?', 'כמה ימי מנוחה צריך?']
+    if (goals.includes('endurance'))  return ['כיצד לשפר ביצועי ריצה?', 'מה לאכול לפני אימון אירובי?', 'כמה מים לשתות ביום?', 'כיצד למנוע פציעות?', 'מה הקצב המומלץ לאימון?']
+    if (level === 'beginner')         return ['איפה מתחילים עם אימונים?', 'כמה פעמים בשבוע כדאי להתאמן למתחילים?', 'מה לאכול לפני אימון?', 'כמה חלבון אני צריך?', 'כמה ימי מנוחה צריך?']
+    return ['כמה חלבון אני צריך?', 'כמה ימי מנוחה כדאי בשבוע?', 'מה לאכול לפני אימון?', 'איך בונים שריר מהר יותר?', 'האם אירובי חשוב לחיטוב?']
+  }
+
+  if (goals.includes('cut'))        return ['How many calories should I eat per day?', 'Best exercises for fat burning?', 'What to eat before and after a workout?', 'How many times a week should I train?', 'How do I stay motivated?']
+  if (goals.includes('bulk'))       return ['How much protein do I need per day?', 'Best exercises for muscle building?', 'What to eat after a workout?', 'How many calories to add for bulking?', 'How many rest days do I need?']
+  if (goals.includes('endurance'))  return ['How do I improve my running?', 'What to eat before cardio?', 'How much water per day?', 'How to prevent injuries?', 'What is a good training pace?']
+  if (level === 'beginner')         return ['Where do I start with training?', 'How many times a week for beginners?', 'What to eat before a workout?', 'How much protein do I need?', 'How many rest days do I need?']
+  return ['How much protein do I need?', 'How many rest days per week?', 'What should I eat before a workout?', 'How do I build muscle faster?', 'Is cardio necessary for fat loss?']
+}
 import {
   getHybridAiReply,
   isAbortError,
@@ -129,6 +152,21 @@ export default function ChatPage() {
     const scale = getConnectedScale()
     const latestWeight = getLatestWeight(profile.weightKg)
     const progress = getProgressData()
+
+    // Last 3 workouts for AI context
+    const recentWorkouts = [...progress.workouts, ...progress.cardio]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 3)
+    const recentWorkoutsLine = recentWorkouts.length
+      ? `האימונים האחרונים: ${recentWorkouts.map(w => `${w.type} ${w.duration}דק (${new Date(w.date).toLocaleDateString('he-IL')})`).join(', ')}. streak: ${stats.streak} ימים. XP: ${stats.xp}.`
+      : `streak: ${stats.streak} ימים. XP: ${stats.xp}. אין עדיין אימונים מוקלטים.`
+
+    // Daily feeling context
+    const todayCheckin = getTodayCheckin()
+    const feelingLine = todayCheckin
+      ? `תחושת המשתמש היום: ${todayCheckin.feeling === '💪' ? 'מצוין/מוכן לאימון' : todayCheckin.feeling === '😴' ? 'עייף/אנרגיה נמוכה' : 'בסדר'}.`
+      : ''
+
     const profileContext = [
       `name: ${profile.name || 'not provided'}`,
       `age: ${profile.age ?? 'not provided'}`,
@@ -142,23 +180,26 @@ export default function ChatPage() {
       `habits: activity ${habits?.dailyActivity ?? 'unknown'}, fixed workout time ${habits?.fixedWorkoutTime ?? 'unknown'}, hardest part ${habits?.hardestPart ?? 'unknown'}`,
       `devices: smart watch ${watch.connected ? 'connected' : 'not connected'}, smart scale ${scale.connected ? 'connected' : 'not connected'}, latest weight ${latestWeight ?? 'not provided'}`,
       `progress: workouts ${progress.workouts.length}, cardio sessions ${progress.cardio.length}, saved meal plans ${progress.mealPlans.length}`,
+      recentWorkoutsLine,
+      ...(feelingLine ? [feelingLine] : []),
     ].join('\n')
     const recentMessages = nextMessages
       .slice(-6)
-      .map(message => `${message.role === 'user' ? 'User' : 'SmartFit'}: ${message.text}`)
+      .map(message => `${message.role === 'user' ? 'User' : 'Ascend AI'}: ${message.text}`)
       .join('\n')
       .slice(-MAX_CHAT_HISTORY_PROMPT_CHARS)
 
+    const userName = profile.name?.trim()
     return [
       `Answer in ${answerLanguage}.`,
-      'You are SmartFit AI, a fitness and nutrition coach for general guidance only.',
+      'You are Ascend AI, a fitness and nutrition coach for general guidance only.',
+      userName ? `The user's name is ${userName}. Address them by name naturally.` : '',
       `User age group: ${ageGuidance.group}.`,
+      'IMPORTANT: Keep every reply short — 10 lines maximum. Be direct and skip filler sentences.',
       'User profile:',
       profileContext,
       'Stay within fitness, training, recovery, healthy meals, and habits.',
-      'When you create a workout or list exercises, keep each exercise explanation short: maximum 2-3 readable lines.',
-      'For each exercise include only: how to do it briefly, the most important technique cue, and one short machine description if it is a machine exercise.',
-      'Use simple language for beginners. For advanced users, add only one short cue about control or range of motion.',
+      'When you create a workout or list exercises, keep each exercise explanation short: maximum 1-2 lines.',
       'Do not provide medical advice, extreme diets, unsafe exercises, or weight-loss promises.',
       'If the user asks for something risky, give a safer general alternative.',
       'Recent conversation:',
@@ -276,7 +317,7 @@ export default function ChatPage() {
         return
       }
 
-      console.log('SmartFit chat AI final failure', error)
+      console.log('Ascend AI chat AI final failure', error)
       const fallback = handleFallback({
         profile,
         language,
@@ -329,10 +370,10 @@ export default function ChatPage() {
     }
   }
 
-  const loadingTitle = language === 'he' ? 'SmartFit AI חושב...' : 'SmartFit AI is thinking...'
+  const loadingTitle = language === 'he' ? 'Ascend AI חושב...' : 'Ascend AI is thinking...'
   const loadingDetail = language === 'he'
-    ? slowLoading ? 'יוצר תוכנית מותאמת אישית...' : 'מכין תשובה מותאמת...'
-    : slowLoading ? 'Creating a personalized plan...' : 'Preparing a personalized answer...'
+    ? slowLoading ? 'עדיין מחשב, זה לוקח קצת יותר...' : 'מכין תשובה מותאמת...'
+    : slowLoading ? 'Still thinking, this is taking a bit longer...' : 'Preparing a personalized answer...'
 
   return (
     <div className="app-layout chat-layout">
@@ -371,7 +412,7 @@ export default function ChatPage() {
 
       {messages.length === 1 && (
         <div className="suggested-questions">
-          {suggestedQuestions[language].map((question, index) => (
+          {getPersonalizedSuggestions(profile, language).map((question, index) => (
             <button key={`${language}-suggestion-${index}-${question}`} className="suggested-q-btn" onClick={() => sendMessage(question)}>{question}</button>
           ))}
         </div>

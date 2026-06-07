@@ -38,18 +38,27 @@ ALTER TABLE friend_notifications  ENABLE ROW LEVEL SECURITY;
 
 -- Policies: friend_invites
 -- SELECT: any authenticated user can read an invite by ID (the UUID is the secret token — unguessable)
+DROP POLICY IF EXISTS "Authenticated users can read invites" ON friend_invites;
 CREATE POLICY "Authenticated users can read invites" ON friend_invites FOR SELECT USING (auth.uid() IS NOT NULL);
 -- INSERT: only the creator can create their own invite
+DROP POLICY IF EXISTS "Owner creates invite" ON friend_invites;
 CREATE POLICY "Owner creates invite"      ON friend_invites FOR INSERT WITH CHECK (auth.uid() = creator_id);
 -- DELETE: only the creator can delete their own invite
+DROP POLICY IF EXISTS "Owner deletes invite" ON friend_invites;
 CREATE POLICY "Owner deletes invite"      ON friend_invites FOR DELETE USING (auth.uid() = creator_id);
 
 -- Policies: friendships
+DROP POLICY IF EXISTS "See own friendships" ON friendships;
 CREATE POLICY "See own friendships"       ON friendships FOR SELECT USING (auth.uid() = user_a_id OR auth.uid() = user_b_id);
+DROP POLICY IF EXISTS "Create friendship" ON friendships;
 CREATE POLICY "Create friendship"         ON friendships FOR INSERT WITH CHECK (auth.uid() = user_a_id);
+DROP POLICY IF EXISTS "Delete own friendship" ON friendships;
 CREATE POLICY "Delete own friendship"     ON friendships FOR DELETE USING (auth.uid() = user_a_id OR auth.uid() = user_b_id);
 
 -- Policies: friend_notifications
+DROP POLICY IF EXISTS "See own notifications" ON friend_notifications;
 CREATE POLICY "See own notifications"     ON friend_notifications FOR SELECT USING (auth.uid() = to_user_id);
+DROP POLICY IF EXISTS "Send notifications" ON friend_notifications;
 CREATE POLICY "Send notifications"        ON friend_notifications FOR INSERT WITH CHECK (auth.uid() = from_user_id);
+DROP POLICY IF EXISTS "Mark own as read" ON friend_notifications;
 CREATE POLICY "Mark own as read"          ON friend_notifications FOR UPDATE USING (auth.uid() = to_user_id);

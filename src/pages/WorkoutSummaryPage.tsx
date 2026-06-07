@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../context/I18nContext'
 import { useUser } from '../context/UserContext'
+import { updateWorkoutEntry } from '../progressStorage'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Completion = 'yes' | 'partial' | 'no'
@@ -12,10 +14,12 @@ const BASE_XP = 120
 const FEEDBACK_BONUS_XP = 15
 
 export default function WorkoutSummaryPage() {
+  const { user } = useAuth()
   const { stats, addXP, incrementStreak } = useUser()
-  const { t } = useI18n()
+  const { isHebrew, t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
+  const routeState = location.state as { completionId?: string } | null
 
   const [phase, setPhase] = useState<'celebration' | 'feedback'>('celebration')
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
@@ -27,8 +31,7 @@ export default function WorkoutSummaryPage() {
   const [bonusAwarded, setBonusAwarded] = useState(false)
 
   useEffect(() => {
-    const state = location.state as { completionId?: string } | null
-    const completionId = state?.completionId ?? 'direct-summary'
+    const completionId = routeState?.completionId ?? 'direct-summary'
     const rewardKey = `smartfit_rewarded_${completionId}`
 
     if (!window.sessionStorage.getItem(rewardKey)) {
@@ -39,7 +42,7 @@ export default function WorkoutSummaryPage() {
 
     const timer = window.setTimeout(() => setPhase('feedback'), 2500)
     return () => window.clearTimeout(timer)
-  }, [addXP, incrementStreak, location.state])
+  }, [addXP, incrementStreak, routeState?.completionId])
 
   const allAnswered = Boolean(difficulty && completion && feeling && pain)
 
@@ -48,8 +51,23 @@ export default function WorkoutSummaryPage() {
       addXP(FEEDBACK_BONUS_XP)
       setBonusAwarded(true)
     }
+    const completionId = routeState?.completionId
+    if (completionId) {
+      updateWorkoutEntry(completionId, {
+        completion: completion ?? undefined,
+        difficulty: difficulty ?? undefined,
+        feeling: feeling ?? undefined,
+        notes: notes.trim() || undefined,
+        pain: pain ?? undefined,
+      })
+    }
     setSubmitted(true)
     window.setTimeout(() => navigate('/dashboard'), 1200)
+  }
+
+  const handleShareWorkout = () => {
+    if (!user) return
+    navigate('/social?tab=feed&share=1')
   }
 
   if (phase === 'celebration') {
@@ -136,6 +154,10 @@ export default function WorkoutSummaryPage() {
       {allAnswered && (
         <p className="bonus-xp-hint">+{FEEDBACK_BONUS_XP} XP</p>
       )}
+
+      <button className="btn-secondary" onClick={handleShareWorkout} disabled={!user}>
+        {isHebrew ? 'בחר חברים לשיתוף האימון' : 'Choose friends to share this workout'}
+      </button>
 
       <button className="btn-primary" onClick={handleFinish}>
         {t('finishSave')}

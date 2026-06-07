@@ -1,3 +1,5 @@
+import { saveAppAccess } from './lib/appAccess'
+
 export type LocationTrackerStatus = 'idle' | 'requesting' | 'tracking' | 'denied' | 'unavailable' | 'error'
 
 export type LocationTrackerPoint = {
@@ -34,12 +36,24 @@ export function getDistanceKm(from: LocationTrackerPoint, to: LocationTrackerPoi
 
 export function startLocationTracker(options: StartLocationTrackerOptions): LocationTrackerHandle {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    saveAppAccess('location', {
+      status: 'unavailable',
+      source: 'browser',
+      remember: false,
+      note: 'geolocation-api-unavailable',
+    })
     options.onStatusChange?.('unavailable')
     return { stop: () => undefined }
   }
 
   let lastPoint: LocationTrackerPoint | null = null
   let totalDistanceKm = 0
+  saveAppAccess('location', {
+    status: 'unknown',
+    source: 'browser',
+    remember: false,
+    note: 'requesting-location',
+  })
   options.onStatusChange?.('requesting')
 
   const watchId = navigator.geolocation.watchPosition(
@@ -52,6 +66,12 @@ export function startLocationTracker(options: StartLocationTrackerOptions): Loca
       }
 
       options.onStatusChange?.('tracking')
+      saveAppAccess('location', {
+        status: 'granted',
+        source: 'browser',
+        remember: true,
+        note: 'tracking-active',
+      })
 
       if (lastPoint) {
         const segmentKm = getDistanceKm(lastPoint, nextPoint)
@@ -65,7 +85,14 @@ export function startLocationTracker(options: StartLocationTrackerOptions): Loca
       lastPoint = nextPoint
     },
     error => {
-      options.onStatusChange?.(error.code === error.PERMISSION_DENIED ? 'denied' : 'error')
+      const status = error.code === error.PERMISSION_DENIED ? 'denied' : 'error'
+      saveAppAccess('location', {
+        status: status === 'denied' ? 'denied' : 'unknown',
+        source: 'browser',
+        remember: false,
+        note: status === 'denied' ? 'location-denied' : 'location-error',
+      })
+      options.onStatusChange?.(status)
     },
     {
       enableHighAccuracy: true,

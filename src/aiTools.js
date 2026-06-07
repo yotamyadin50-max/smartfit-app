@@ -486,7 +486,7 @@ function renderAITools(root) {
   root.innerHTML = `
     <div class="sf-ai-tools-shell">
       <div class="sf-ai-tools-hero">
-        <p class="sf-ai-tools-kicker">SmartFit AI</p>
+        <p class="sf-ai-tools-kicker">Ascend AI</p>
         <h2 class="sf-ai-tools-heading">${t.title}</h2>
         <p class="sf-ai-tools-copy">${t.subtitle}</p>
         <p class="sf-ai-tools-disclaimer">${getDisclaimer()}.</p>
@@ -776,7 +776,7 @@ async function runAiRequest(root, type, prompt, loadingText) {
     setResult(root, type, answer.trim() || t.error)
     setStatus(root, type, '', '')
   } catch (error) {
-    console.log('SmartFit AI tools final failure', error)
+    console.log('Ascend AI tools final failure', error)
     const fallback = handleFallback({ userMessage: prompt })
     setResult(root, type, `[${fallback.modeLabel}]\n${fallback.text}`)
     setStatus(root, type, '', '')

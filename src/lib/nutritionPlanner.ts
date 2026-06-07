@@ -55,6 +55,13 @@ const enduranceMeals: MealTemplate[] = [
   ['תפוח אדמה עם גבינה וירקות', ['תפוח אדמה', 'גבינה', 'ירקות'], 'ארוחה פשוטה וחמה ללא עומס.', 'מתאים לסיבולת כי תפוח האדמה נותן אנרגיה הדרגתית.'],
 ]
 
+const cutMeals: MealTemplate[] = [
+  ['קערת עוף וירקות עם אורז', ['עוף', 'אורז', 'ירקות', 'שמן זית'], 'צלחת מאוזנת עם חלבון ברור, ירקות ופחמימה מדודה.', 'מתאים לחיטוב כי הוא משביע, מסודר ולא קיצוני.'],
+  ['סלט טונה וביצה', ['טונה', 'ביצים', 'מלפפון', 'עגבניה'], 'ארוחה קלה להכנה עם הרבה שובע ונפח מירקות.', 'מתאים לחיטוב כי היא שומרת על חלבון גבוה בלי להכביד.'],
+  ['יוגורט עם שיבולת שועל ופירות', ['יוגורט', 'שיבולת שועל', 'בננה', 'תפוח'], 'אפשרות מהירה לבוקר או לנשנוש מסודר.', 'מתאים לחיטוב כי הוא נותן שובע ומתיקות טבעית בלי דיאטה קיצונית.'],
+  ['קערת עדשים וירקות', ['עדשים', 'ירקות', 'טחינה', 'אורז'], 'ארוחה צמחית משביעה עם סיבים וחלבון.', 'מתאים לחיטוב כי היא עוזרת לשמור על סדר ושובע לאורך היום.'],
+]
+
 const balancedMeals: MealTemplate[] = [
   ['קערת יוגורט ופירות', ['יוגורט', 'בננה', 'תפוח', 'שיבולת שועל'], 'ארוחה קלה, מהירה ומאוזנת.', 'מתאים לכושר כללי כי היא משלבת שובע, אנרגיה וחלבון.'],
   ['סלט טונה וביצה', ['טונה', 'ביצים', 'מלפפון', 'עגבניה'], 'ארוחה קרה שאפשר להכין מראש.', 'מתאים למטרה כי היא משביעה בלי להיות כבדה.'],
@@ -97,6 +104,13 @@ const englishEnduranceMeals: MealTemplate[] = [
   ['Potato with cheese and vegetables', ['potato', 'cheese', 'vegetables'], 'A warm simple meal without much fuss.', 'Fits endurance because potato provides gradual energy.'],
 ]
 
+const englishCutMeals: MealTemplate[] = [
+  ['Chicken and vegetable rice bowl', ['chicken', 'rice', 'vegetables', 'olive oil'], 'A balanced plate with clear protein, vegetables and measured carbohydrates.', 'Fits body-composition goals because it is filling, structured and not extreme.'],
+  ['Tuna and egg salad', ['tuna', 'eggs', 'cucumber', 'tomato'], 'A quick meal with protein and volume from vegetables.', 'Fits body-composition goals because it supports fullness without feeling heavy.'],
+  ['Yogurt with oats and fruit', ['yogurt', 'oats', 'banana', 'apple'], 'A fast option for breakfast or a planned snack.', 'Fits body-composition goals because it adds fullness and natural sweetness without extreme dieting.'],
+  ['Lentil and vegetable bowl', ['lentils', 'vegetables', 'tahini', 'rice'], 'A plant-based meal with fiber and protein.', 'Fits body-composition goals because it supports consistency and fullness through the day.'],
+]
+
 const englishBalancedMeals: MealTemplate[] = [
   ['Yogurt and fruit bowl', ['yogurt', 'banana', 'apple', 'oats'], 'A light, quick and balanced meal.', 'Fits general fitness because it combines fullness, energy and protein.'],
   ['Tuna and egg salad', ['tuna', 'eggs', 'cucumber', 'tomato'], 'A cold meal that can be prepared ahead.', 'Fits the goal because it is filling without being heavy.'],
@@ -116,6 +130,7 @@ function getLanguageData(language: PlanLanguage) {
   if (language === 'en') {
     return {
       balancedMeals: englishBalancedMeals,
+      cutMeals: englishCutMeals,
       dayNames: englishDayNames,
       enduranceMeals: englishEnduranceMeals,
       goalLabels: englishGoalLabels,
@@ -128,6 +143,7 @@ function getLanguageData(language: PlanLanguage) {
 
   return {
     balancedMeals,
+    cutMeals,
     dayNames,
     enduranceMeals,
     goalLabels,
@@ -154,12 +170,12 @@ function includesForbidden(ingredients: string[], blocked: string[]) {
 
 function getPrimaryGoal(profile: Partial<UserProfile>) {
   const goals = profile.goals?.length ? profile.goals : [profile.goal ?? 'fitness']
+  if (goals.includes('cut')) return 'cut'
   if (goals.includes('bulk')) return 'bulk'
   if (goals.includes('endurance')) return 'endurance'
   if (goals.includes('health')) return 'health'
   if (goals.includes('consistency')) return 'consistency'
   if (goals.includes('flexibility')) return 'flexibility'
-  if (goals.includes('cut')) return 'cut'
   return 'fitness'
 }
 
@@ -167,7 +183,9 @@ function getMealPool(profile: Partial<UserProfile>, language: PlanLanguage) {
   const data = getLanguageData(language)
   const goal = getPrimaryGoal(profile)
   const hardWithTime = profile.habits?.hardestPart === 'time'
-  const base = goal === 'bulk'
+  const base = goal === 'cut'
+    ? data.cutMeals
+    : goal === 'bulk'
     ? data.strengthMeals
     : goal === 'endurance'
       ? data.enduranceMeals

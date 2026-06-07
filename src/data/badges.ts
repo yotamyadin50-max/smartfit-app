@@ -1,5 +1,7 @@
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'platinum'
 
+export type BadgeStats = { streak: number; totalWorkouts: number; xp: number; level: number }
+
 export interface Badge {
   id: string
   icon: string
@@ -9,7 +11,8 @@ export interface Badge {
   descHe: string
   tier: BadgeTier
   xpReward: number
-  condition: (stats: { streak: number; totalWorkouts: number; xp: number; level: number }) => boolean
+  condition: (stats: BadgeStats) => boolean
+  progress?: (stats: BadgeStats) => { current: number; target: number }
 }
 
 export const ALL_BADGES: Badge[] = [
@@ -23,6 +26,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'bronze',
     xpReward: 50,
     condition: s => s.totalWorkouts >= 1,
+    progress: s => ({ current: Math.min(s.totalWorkouts, 1), target: 1 }),
   },
   {
     id: 'streak_3',
@@ -34,6 +38,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'bronze',
     xpReward: 75,
     condition: s => s.streak >= 3,
+    progress: s => ({ current: Math.min(s.streak, 3), target: 3 }),
   },
   {
     id: 'streak_7',
@@ -45,6 +50,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'silver',
     xpReward: 150,
     condition: s => s.streak >= 7,
+    progress: s => ({ current: Math.min(s.streak, 7), target: 7 }),
   },
   {
     id: 'streak_30',
@@ -56,6 +62,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'gold',
     xpReward: 500,
     condition: s => s.streak >= 30,
+    progress: s => ({ current: Math.min(s.streak, 30), target: 30 }),
   },
   {
     id: 'workouts_5',
@@ -67,6 +74,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'bronze',
     xpReward: 100,
     condition: s => s.totalWorkouts >= 5,
+    progress: s => ({ current: Math.min(s.totalWorkouts, 5), target: 5 }),
   },
   {
     id: 'workouts_25',
@@ -78,6 +86,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'silver',
     xpReward: 250,
     condition: s => s.totalWorkouts >= 25,
+    progress: s => ({ current: Math.min(s.totalWorkouts, 25), target: 25 }),
   },
   {
     id: 'workouts_100',
@@ -89,6 +98,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'gold',
     xpReward: 1000,
     condition: s => s.totalWorkouts >= 100,
+    progress: s => ({ current: Math.min(s.totalWorkouts, 100), target: 100 }),
   },
   {
     id: 'level_5',
@@ -100,6 +110,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'silver',
     xpReward: 200,
     condition: s => s.level >= 5,
+    progress: s => ({ current: Math.min(s.level, 5), target: 5 }),
   },
   {
     id: 'level_10',
@@ -111,6 +122,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'gold',
     xpReward: 500,
     condition: s => s.level >= 10,
+    progress: s => ({ current: Math.min(s.level, 10), target: 10 }),
   },
   {
     id: 'xp_1000',
@@ -122,6 +134,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'bronze',
     xpReward: 100,
     condition: s => s.xp >= 1000,
+    progress: s => ({ current: Math.min(s.xp, 1000), target: 1000 }),
   },
   {
     id: 'xp_5000',
@@ -133,6 +146,7 @@ export const ALL_BADGES: Badge[] = [
     tier: 'platinum',
     xpReward: 1000,
     condition: s => s.xp >= 5000,
+    progress: s => ({ current: Math.min(s.xp, 5000), target: 5000 }),
   },
 ]
 

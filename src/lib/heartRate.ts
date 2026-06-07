@@ -10,6 +10,13 @@
  * On iOS the only real path is a native app + HealthKit.
  */
 
+import {
+  forgetConnectedWatch,
+  markWatchDisconnected,
+  recordHeartRateSample,
+  saveConnectedWatch,
+} from '../deviceConnections'
+
 const HR_SERVICE     = 0x180D           // Heart Rate GATT service
 const HR_MEASUREMENT = 0x2A37           // Heart Rate Measurement characteristic
 
@@ -30,6 +37,7 @@ type BluetoothRemoteGATTServer = {
 
 type BluetoothDevice = EventTarget & {
   gatt?: BluetoothRemoteGATTServer
+  id?: string
   name?: string
 }
 
@@ -50,10 +58,101 @@ let _bpm      = 0
 let _device: BluetoothDevice | null = null
 let _char:   BluetoothRemoteGATTCharacteristic | null = null
 let _connectedName = ''
+let _autoReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let _autoReconnectAttempts = 0
+let _manualDisconnect = false
+let _wiredDisconnectHandlerDevice: BluetoothDevice | null = null
+
+const AUTO_RECONNECT_DELAYS_MS = [3000, 8000, 15000, 30000, 60000]
+const MAX_AUTO_RECONNECT_ATTEMPTS = AUTO_RECONNECT_DELAYS_MS.length
 
 function emit(bpm: number) {
   _bpm = bpm
   listeners.forEach(fn => fn(bpm))
+}
+
+function clearAutoReconnectTimer() {
+  if (_autoReconnectTimer) {
+    clearTimeout(_autoReconnectTimer)
+    _autoReconnectTimer = null
+  }
+}
+
+function handleHeartRateChange(event: Event) {
+  const val = (event.target as BluetoothRemoteGATTCharacteristic).value!
+  const flags = val.getUint8(0)
+  const bpm   = flags & 0x01 ? val.getUint16(1, true) : val.getUint8(1)
+  recordHeartRateSample(bpm, _connectedName)
+  emit(bpm)
+}
+
+function attachDisconnectHandler(device: BluetoothDevice) {
+  if (_wiredDisconnectHandlerDevice === device) return
+  _wiredDisconnectHandlerDevice?.removeEventListener('gattserverdisconnected', handleDeviceDisconnected)
+  device.addEventListener('gattserverdisconnected', handleDeviceDisconnected)
+  _wiredDisconnectHandlerDevice = device
+}
+
+function handleDeviceDisconnected() {
+  if (_manualDisconnect) return
+
+  _bpm = 0
+  _char = null
+  markWatchDisconnected()
+  listeners.forEach(fn => fn(0))
+  scheduleAutoReconnect()
+}
+
+function scheduleAutoReconnect() {
+  clearAutoReconnectTimer()
+  if (!_device || _manualDisconnect || _autoReconnectAttempts >= MAX_AUTO_RECONNECT_ATTEMPTS) return
+
+  const delay = AUTO_RECONNECT_DELAYS_MS[_autoReconnectAttempts] ?? 60000
+  _autoReconnectAttempts += 1
+  _autoReconnectTimer = setTimeout(async () => {
+    try {
+      await reconnectBLEHeartRate()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.log('Ascend AI watch auto reconnect failed', {
+        attempt: _autoReconnectAttempts,
+        message,
+      })
+      scheduleAutoReconnect()
+    }
+  }, delay)
+}
+
+async function connectToDevice(device: BluetoothDevice): Promise<{ name: string }> {
+  if (!device.gatt) {
+    throw new Error('Selected Bluetooth device does not expose GATT.')
+  }
+
+  clearAutoReconnectTimer()
+  _manualDisconnect = false
+  _device = device
+  _connectedName = device.name ?? (_connectedName || 'BLE Device')
+  attachDisconnectHandler(device)
+
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect()
+  const service = await server.getPrimaryService(HR_SERVICE)
+  _char = await service.getCharacteristic(HR_MEASUREMENT)
+
+  _char.removeEventListener('characteristicvaluechanged', handleHeartRateChange)
+  _char.addEventListener('characteristicvaluechanged', handleHeartRateChange)
+
+  await _char.startNotifications()
+  _autoReconnectAttempts = 0
+  saveConnectedWatch({
+    autoReconnect: true,
+    connected: true,
+    deviceId: device.id,
+    deviceName: _connectedName,
+    lastSeen: new Date().toISOString(),
+    provider: 'watch',
+    remembered: true,
+  })
+  return { name: _connectedName }
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -66,6 +165,11 @@ export function isBLESupported(): boolean {
 /** True if a device is currently connected */
 export function isHRConnected(): boolean {
   return _device?.gatt?.connected ?? false
+}
+
+/** True when the current in-memory Bluetooth device can reconnect without opening the picker. */
+export function canReconnectBLEHeartRate(): boolean {
+  return Boolean(_device?.gatt && !_device.gatt.connected)
 }
 
 /** Latest HR reading (0 = no reading yet) */
@@ -109,40 +213,39 @@ export async function connectBLEHeartRate(mode: 'hr' | 'any' = 'hr'): Promise<{ 
 
   const device = await (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth.requestDevice(requestOptions)
 
-  _device = device
-  _connectedName = device.name ?? 'BLE Device'
+  return connectToDevice(device)
 
-  // Handle unexpected disconnection
-  device.addEventListener('gattserverdisconnected', () => {
-    _bpm = 0
-    _connectedName = ''
-    listeners.forEach(fn => fn(0))
-  })
+}
 
-  const server = await device.gatt!.connect()
-  const service = await server.getPrimaryService(HR_SERVICE)
-  _char = await service.getCharacteristic(HR_MEASUREMENT)
+/** Reconnect the previously selected device in the same app session, if the browser still allows it. */
+export async function reconnectBLEHeartRate(): Promise<{ name: string }> {
+  if (!_device) {
+    throw new Error('Saved watch needs a new Bluetooth approval before automatic reconnect is possible.')
+  }
 
-  _char.addEventListener('characteristicvaluechanged', (event: Event) => {
-    const val = (event.target as BluetoothRemoteGATTCharacteristic).value!
-    // Byte 0 is flags: bit 0 = 0 → 8-bit BPM, bit 0 = 1 → 16-bit BPM
-    const flags = val.getUint8(0)
-    const bpm   = flags & 0x01 ? val.getUint16(1, true) : val.getUint8(1)
-    emit(bpm)
-  })
-
-  await _char.startNotifications()
-  return { name: _connectedName }
+  return connectToDevice(_device)
 }
 
 /** Gracefully disconnect and reset state */
-export async function disconnectBLE() {
+export async function disconnectBLE(options: { forget?: boolean } = {}) {
+  const forget = options.forget ?? true
+  _manualDisconnect = true
+  clearAutoReconnectTimer()
   try { await _char?.stopNotifications() } catch { /* ignore */ }
   try { if (_device?.gatt?.connected) _device.gatt.disconnect() } catch { /* ignore */ }
-  _device = null
+  if (forget) {
+    _wiredDisconnectHandlerDevice?.removeEventListener('gattserverdisconnected', handleDeviceDisconnected)
+    _wiredDisconnectHandlerDevice = null
+    _device = null
+  }
   _char   = null
   _bpm    = 0
-  _connectedName = ''
+  if (forget) {
+    _connectedName = ''
+    forgetConnectedWatch()
+  } else {
+    markWatchDisconnected()
+  }
 }
 
 // ── Heart-rate zone helpers ──────────────────────────────────────────────────

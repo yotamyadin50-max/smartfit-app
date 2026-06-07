@@ -275,6 +275,11 @@ button { color: inherit; }
 .btn-primary { width: 100%; padding: 12px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; border: none; border-radius: var(--radius-sm); cursor: pointer; margin-top: 8px; transition: background 0.15s; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; color: var(--text-secondary); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 11px 12px; background: #fff; color: #3c4043; font-size: 14px; font-weight: 500; border: 1px solid #dadce0; border-radius: var(--radius-sm); cursor: pointer; margin-top: 4px; transition: background 0.15s, box-shadow 0.15s; }
+.btn-google:hover:not(:disabled) { background: #f8f9fa; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.btn-google:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { width: 100%; padding: 12px; background: transparent; color: var(--text-primary); font-size: 14px; font-weight: 600; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; margin-top: 8px; transition: border-color 0.15s, color 0.15s; }
 .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
 .btn-ghost { background: transparent; border: none; color: var(--text-secondary); font-size: 13px; cursor: pointer; padding: 8px 12px; }
@@ -1203,3 +1208,663 @@ button { color: inherit; }
 
 [dir="rtl"] .weekly-plan-row { grid-template-columns: 1fr 90px; }
 [dir="rtl"] .settings-number-row { grid-template-columns: 110px 1fr; }
+
+/* Ascend AI premium visual refresh: UI-only layer */
+:root {
+  --bg: #000000;
+  --bg-card: rgba(255, 255, 255, 0.055);
+  --bg-input: rgba(255, 255, 255, 0.075);
+  --border: rgba(255, 255, 255, 0.10);
+  --border-focus: #00ff88;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-muted: rgba(255, 255, 255, 0.50);
+  --accent: #00ff88;
+  --accent-hover: #00e676;
+  --accent-dim: rgba(0, 255, 136, 0.13);
+  --accent-yellow: #b7ff2a;
+  --accent-yellow-dim: rgba(183, 255, 42, 0.12);
+  --neon-cyan: #00d5ff;
+  --neon-purple: #7c4dff;
+  --neon-lavender: #b388ff;
+  --danger: #ff4d6d;
+  --success: #00ff88;
+  --radius: 22px;
+  --radius-sm: 14px;
+  --shadow: 0 22px 70px rgba(0, 0, 0, 0.58), 0 0 34px rgba(0, 255, 136, 0.06);
+  --bottom-nav-h: 78px;
+}
+
+html {
+  background: #000000;
+  color-scheme: dark;
+}
+
+#root {
+  min-height: 100dvh;
+  position: relative;
+  isolation: isolate;
+}
+
+#root > *:not(canvas) {
+  position: relative;
+  z-index: 1;
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(0, 255, 136, 0.10), transparent 32%),
+    radial-gradient(circle at 84% 6%, rgba(0, 213, 255, 0.10), transparent 28%),
+    radial-gradient(circle at 50% 94%, rgba(124, 77, 255, 0.12), transparent 38%),
+    #000000;
+  color: var(--text-primary);
+  font-family: Heebo, Rubik, Assistant, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.dash-name,
+.dash-ai-fab-label,
+.brand-text,
+.bottom-nav-label {
+  letter-spacing: 0;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.smartfit-wave-bg {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(0, 255, 136, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(0, 213, 255, 0.12), transparent 30%),
+    radial-gradient(circle at 48% 86%, rgba(124, 77, 255, 0.16), transparent 36%),
+    #000000;
+}
+
+.smartfit-wave-bg::before,
+.smartfit-wave-bg::after {
+  background:
+    linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.28), rgba(0, 213, 255, 0.22), rgba(124, 77, 255, 0.20), transparent);
+  filter: blur(26px);
+  opacity: 0.45;
+}
+
+.app-layout,
+.page-content,
+.chat-layout {
+  background: transparent;
+}
+
+.page-content {
+  padding-bottom: calc(var(--bottom-nav-h) + 22px);
+}
+
+.page-header,
+.chat-header {
+  background: rgba(0, 0, 0, 0.68);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+}
+
+.page-title,
+.chat-header h1,
+.workout-card-name,
+.dash-today-name {
+  color: #ffffff;
+  text-shadow: 0 0 22px rgba(0, 255, 136, 0.08);
+}
+
+.auth-card,
+.landing-hero,
+.workout-card-big,
+.training-system-card,
+.exercise-focus-card,
+.timed-exercise-card,
+.skip-confirm-card,
+.dash-stat,
+.dash-stat-tile,
+.dash-today-card,
+.dash-tile,
+.dash-weekly-btn,
+.dash-secondary-btn,
+.meal-card,
+.meal-creator,
+.goal-banner,
+.next-meal-card,
+.measurements-card,
+.monthly-summary-card,
+.history-item,
+.achievement-card,
+.settings-section,
+.settings-item,
+.settings-toggle-row,
+.wear-device-card,
+.wear-info-box,
+.graph-placeholder,
+.sf-ai-tools-hero,
+.sf-ai-tools-card,
+.sf-ai-tools-result,
+.sf-ai-tools-stat,
+.sf-ai-tools-advice,
+.sf-ai-tools-week-summary,
+.sf-ai-tools-history-item {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.026)),
+    radial-gradient(circle at 16% 0%, rgba(0, 255, 136, 0.055), transparent 36%),
+    radial-gradient(circle at 92% 100%, rgba(124, 77, 255, 0.060), transparent 38%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.auth-card,
+.workout-card-big,
+.training-system-card,
+.dash-today-card,
+.meal-card,
+.meal-creator,
+.settings-section,
+.wear-device-card,
+.sf-ai-tools-hero,
+.sf-ai-tools-card {
+  border-radius: var(--radius);
+}
+
+.dash-fullscreen {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(0, 255, 136, 0.11), transparent 34%),
+    radial-gradient(circle at 96% 22%, rgba(0, 213, 255, 0.09), transparent 30%),
+    radial-gradient(circle at 42% 100%, rgba(124, 77, 255, 0.12), transparent 42%),
+    #000000;
+}
+
+.dash-greeting,
+.workout-card-label,
+.dash-stat-lbl,
+.dash-tile-sub,
+.dash-weekly-text small,
+.settings-description,
+.wear-sub,
+.section-sub,
+.meal-card p,
+.history-item span,
+.chat-time {
+  color: var(--text-secondary);
+}
+
+.dash-stat-mid,
+.dash-stat-tile-star,
+.dash-stat-tile-fire {
+  border-color: rgba(183, 255, 42, 0.28);
+  background:
+    linear-gradient(145deg, rgba(183, 255, 42, 0.095), rgba(255, 255, 255, 0.030)),
+    rgba(255, 255, 255, 0.035);
+}
+
+.dash-streak-dot.done,
+.dash-xp-fill,
+.sf-ai-tools-target-track i,
+.sf-ai-tools-chart-bar span {
+  background: linear-gradient(90deg, #00ff88, #00d5ff, #7c4dff);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.28);
+}
+
+.dash-btn,
+.option-card,
+.section-tab-btn,
+.meal-tab-btn,
+.btn-secondary,
+.feedback-btn,
+.wear-connect-alt,
+.sf-ai-tools-link-button {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dash-btn {
+  border-radius: 24px;
+}
+
+.dash-btn:hover,
+.dash-tile:hover,
+.option-card:hover,
+.section-tab-btn:hover,
+.meal-tab-btn:hover,
+.btn-secondary:hover:not(:disabled),
+.feedback-btn:hover,
+.wear-connect-alt:hover {
+  border-color: rgba(0, 255, 136, 0.55);
+  background: rgba(0, 255, 136, 0.070);
+  box-shadow: 0 0 24px rgba(0, 255, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.060);
+}
+
+.dash-btn:active,
+.dash-tile:active,
+.option-card:active,
+.btn-primary:active,
+.btn-secondary:active {
+  transform: scale(0.975);
+}
+
+.option-card.selected,
+.section-tab-btn.active,
+.meal-tab-btn.active {
+  color: #00150b;
+  border-color: rgba(0, 255, 136, 0.86);
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.94), rgba(0, 213, 255, 0.76));
+  box-shadow: 0 0 26px rgba(0, 255, 136, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.option-card.selected .option-label,
+.option-card.selected .option-icon,
+.section-tab-btn.active,
+.meal-tab-btn.active {
+  color: #00150b;
+}
+
+.btn-primary,
+.dash-start-btn,
+.btn-set-done,
+.chat-send-btn,
+.sf-ai-chat-send,
+.sf-ai-tools-button,
+.wear-connect-main,
+.aerobic-start-btn,
+.aerobic-finish-btn,
+.timed-exercise-btn {
+  min-height: 44px;
+  color: #00150b;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #00ff88 0%, #00e676 45%, #00d5ff 100%);
+  box-shadow: 0 0 24px rgba(0, 255, 136, 0.30), 0 14px 32px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled),
+.dash-start-btn:hover,
+.chat-send-btn:hover:not(:disabled),
+.sf-ai-chat-send:hover:not(:disabled),
+.sf-ai-tools-button:hover,
+.wear-connect-main:hover {
+  background: linear-gradient(135deg, #29ffa0 0%, #00ff88 48%, #20e2ff 100%);
+  box-shadow: 0 0 34px rgba(0, 255, 136, 0.42), 0 18px 38px rgba(0, 0, 0, 0.42);
+  filter: saturate(1.08);
+}
+
+.btn-primary:disabled,
+.chat-send-btn:disabled,
+.sf-ai-chat-send:disabled {
+  opacity: 0.46;
+  box-shadow: none;
+}
+
+.btn-primary[style] {
+  color: #ffffff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+.form-input,
+.settings-input,
+.meal-creator input,
+.meal-creator textarea,
+.meal-creator select,
+.chat-input,
+.sf-ai-chat-input,
+.sf-ai-tools-input,
+.sf-ai-tools-select,
+input,
+select,
+textarea {
+  background: rgba(255, 255, 255, 0.070);
+  border-color: rgba(255, 255, 255, 0.11);
+  color: #ffffff;
+  border-radius: 16px;
+}
+
+.form-input:focus,
+.settings-input:focus,
+.meal-creator input:focus,
+.meal-creator textarea:focus,
+.meal-creator select:focus,
+.chat-input:focus,
+.sf-ai-chat-input:focus,
+.sf-ai-tools-input:focus,
+.sf-ai-tools-select:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(0, 255, 136, 0.72);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.12), 0 0 18px rgba(0, 213, 255, 0.08);
+  outline: none;
+}
+
+.bottom-nav {
+  left: 50%;
+  right: auto;
+  bottom: calc(var(--safe-bottom) + 10px);
+  width: min(430px, calc(100vw - 24px));
+  height: 64px;
+  padding: 6px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 26px;
+  background: rgba(4, 6, 8, 0.78);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.54), 0 0 28px rgba(0, 255, 136, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.075);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+.bottom-nav-item {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  justify-content: center;
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.56);
+  transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bottom-nav-item.active {
+  color: #00ff88;
+  background: rgba(0, 255, 136, 0.12);
+  box-shadow: 0 0 22px rgba(0, 255, 136, 0.18);
+}
+
+.bottom-nav-item.active .bottom-nav-icon {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.35));
+}
+
+.bottom-nav-icon {
+  font-size: 19px;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.bottom-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: currentColor;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-header,
+.chat-input-row {
+  background: rgba(0, 0, 0, 0.74);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+}
+
+.chat-bubble {
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.chat-bubble.user {
+  color: #00150b;
+  background: linear-gradient(135deg, #00ff88, #00d5ff);
+  box-shadow: 0 0 24px rgba(0, 255, 136, 0.20), 0 14px 32px rgba(0, 0, 0, 0.28);
+}
+
+.chat-bubble.user .chat-time {
+  color: rgba(0, 21, 11, 0.62);
+}
+
+.chat-bubble.assistant {
+  background: rgba(255, 255, 255, 0.070);
+  border-color: rgba(255, 255, 255, 0.105);
+}
+
+.chat-local-mode-badge,
+.chat-scope-badge,
+.sf-ai-tools-status.success {
+  color: #00ff88;
+  border-color: rgba(0, 255, 136, 0.34);
+  background: rgba(0, 255, 136, 0.11);
+}
+
+.sf-ai-chat-root {
+  font-family: Heebo, Rubik, Assistant, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sf-ai-chat-toggle,
+.dash-ai-fab {
+  border-color: rgba(0, 255, 136, 0.42);
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.95), rgba(0, 213, 255, 0.88), rgba(124, 77, 255, 0.86));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.48), 0 0 30px rgba(0, 255, 136, 0.28);
+}
+
+.sf-ai-chat-panel {
+  border-color: rgba(0, 255, 136, 0.24);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(0, 255, 136, 0.10), transparent 38%),
+    radial-gradient(circle at 92% 8%, rgba(124, 77, 255, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(8, 10, 12, 0.98), rgba(0, 0, 0, 0.98));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.65), 0 0 36px rgba(0, 255, 136, 0.12);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.sf-ai-chat-header {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(0, 255, 136, 0.18), transparent 42%),
+    radial-gradient(circle at 84% 10%, rgba(0, 213, 255, 0.15), transparent 48%);
+}
+
+.sf-ai-chat-kicker,
+.sf-ai-tools-kicker,
+.dash-today-label,
+.sf-ai-tools-target-row strong {
+  color: #00ff88;
+}
+
+.sf-ai-chat-message-user {
+  color: #00150b;
+  background: linear-gradient(135deg, #00ff88, #00d5ff);
+  box-shadow: 0 12px 30px rgba(0, 255, 136, 0.18);
+}
+
+.sf-ai-chat-message-bot {
+  background: rgba(255, 255, 255, 0.070);
+}
+
+.sf-ai-chat-messages,
+.chat-messages,
+.page-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 255, 136, 0.45) transparent;
+}
+
+.progress-ring,
+.summary-score,
+.aerobic-big-timer {
+  text-shadow: 0 0 24px rgba(0, 255, 136, 0.16);
+}
+
+.workout-disclaimer,
+.safety-note,
+.sf-ai-tools-status,
+.sf-ai-tools-empty {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+@media (max-width: 640px) {
+  .page-content {
+    padding-inline: 16px;
+    padding-bottom: calc(var(--bottom-nav-h) + 18px);
+  }
+
+  .auth-card,
+  .landing-hero,
+  .workout-card-big,
+  .training-system-card,
+  .meal-card,
+  .meal-creator,
+  .settings-section,
+  .wear-device-card,
+  .sf-ai-tools-card,
+  .sf-ai-tools-hero {
+    border-radius: 20px;
+  }
+
+  .bottom-nav {
+    width: calc(100vw - 18px);
+    border-radius: 24px;
+  }
+
+  .bottom-nav-label {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 380px) {
+  .bottom-nav-icon {
+    font-size: 17px;
+  }
+
+  .bottom-nav-label {
+    font-size: 8px;
+  }
+
+  .dash-btn-name,
+  .dash-tile-title {
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ExerciseDB GIF animation cards */
+.exercise-animation-card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: clamp(180px, 38vw, 240px);
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(0,255,136,0.08), transparent 42%),
+    rgba(0,0,0,0.68);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.exercise-animation-card.active {
+  border-color: rgba(0,255,136,0.48);
+  box-shadow: 0 0 26px rgba(0,255,136,0.16), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.exercise-animation-card.compact {
+  width: 58px;
+  min-width: 58px;
+  height: 58px;
+  min-height: 58px;
+  margin-bottom: 0;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.exercise-animation-gif {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.2s ease;
+}
+
+.exercise-animation-skeleton,
+.exercise-animation-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255,255,255,0.58);
+  font-size: 12px;
+  text-align: center;
+}
+
+.exercise-animation-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(0,255,136,0.12), rgba(255,255,255,0.04));
+  background-size: 220% 100%;
+  animation: exercise-animation-shimmer 1.4s ease-in-out infinite;
+}
+
+.exercise-animation-placeholder {
+  flex-direction: column;
+  padding: 12px;
+  background: rgba(255,255,255,0.035);
+}
+
+.exercise-animation-placeholder-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(0,255,136,0.24);
+  border-radius: 50%;
+  color: rgba(0,255,136,0.76);
+  font-size: 17px;
+}
+
+.exercise-animation-tags {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+
+.exercise-animation-tags span {
+  padding: 3px 8px;
+  border: 1px solid rgba(0,255,136,0.26);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.54);
+  color: rgba(255,255,255,0.76);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.social-exercise-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 9px;
+  align-items: center;
+}
+
+@keyframes exercise-animation-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

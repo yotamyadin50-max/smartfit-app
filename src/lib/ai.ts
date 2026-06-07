@@ -9,9 +9,31 @@ function getLastUserMessage(messages: AIMessage[]) {
   return [...messages].reverse().find(message => message.role === 'user')?.content.trim() || ''
 }
 
+function buildSystemPrompt(messages: AIMessage[]): string {
+  const systemMessages = messages.filter(m => m.role === 'system')
+  if (systemMessages.length === 0) return ''
+  return systemMessages.map(m => m.content.trim()).join('\n\n')
+}
+
+function buildConversationBlock(messages: AIMessage[]): string {
+  return messages
+    .filter(m => m.role !== 'system')
+    .map(m => {
+      const label = m.role === 'user' ? 'User' : 'Assistant'
+      return `${label}: ${m.content.trim()}`
+    })
+    .join('\n')
+}
+
 export async function sendChatMessage(messages: AIMessage[]): Promise<string> {
   const userMessage = getLastUserMessage(messages)
-  const prompt = messages.map(message => `${message.role}: ${message.content}`).join('\n')
+  const systemPrompt = buildSystemPrompt(messages)
+  const conversationBlock = buildConversationBlock(messages)
+
+  const prompt = systemPrompt
+    ? `${systemPrompt}\n\n---\n\n${conversationBlock}`
+    : conversationBlock
+
   const reply = await getHybridAiReply({ prompt, userMessage })
   return reply.text
 }
@@ -34,4 +56,6 @@ export async function generateProgressInsight(historyData: object): Promise<stri
   return reply.text
 }
 
-export const isAIConfigured = true
+const AI_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined
+export const isAIConfigured =
+  typeof AI_API_KEY === 'string' && AI_API_KEY.length > 10

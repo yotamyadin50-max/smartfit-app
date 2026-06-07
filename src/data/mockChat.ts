@@ -36,12 +36,12 @@ const responses: Record<Language, Record<string, string>> = {
 const defaultResponses: Record<Language, string[]> = {
   en: [
     "That's a good fitness question. In demo mode, the safest answer is: train consistently, sleep well, and eat enough protein.",
-    'SmartFit AI will answer this in more detail later. For now, keep the basics steady: movement, nutrition, sleep, and recovery.',
+    'Ascend AI will answer this in more detail later. For now, keep the basics steady: movement, nutrition, sleep, and recovery.',
     'Noted. This mock coach is limited, but your next best step is usually one small consistent action today.',
   ],
   he: [
     'זו שאלה טובה בכושר. במצב דמו התשובה הבטוחה היא: להתאמן בעקביות, לישון טוב ולאכול מספיק חלבון.',
-    'SmartFit AI יענה על זה לעומק בהמשך. כרגע הבסיס הוא תנועה, תזונה, שינה והתאוששות.',
+    'Ascend AI יענה על זה לעומק בהמשך. כרגע הבסיס הוא תנועה, תזונה, שינה והתאוששות.',
     'נרשם. מאמן הדמו מוגבל, אבל הצעד הכי טוב הוא פעולה קטנה ועקבית כבר היום.',
   ],
 }

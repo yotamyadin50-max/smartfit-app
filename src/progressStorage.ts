@@ -12,11 +12,16 @@ async function getCurrentUserId(): Promise<string | null> {
 export type WorkoutProgressEntry = {
   calories?: number
   completed: boolean
+  completion?: string
   date: string
+  difficulty?: string
   distanceKm?: number
   duration: number
+  exerciseWeights?: Record<string, number>  // exercise name → weight in kg
   feeling?: string
   id: string
+  notes?: string
+  pain?: string
   type: string
 }
 
@@ -79,7 +84,7 @@ export function saveCompletedWorkout(entry: Omit<WorkoutProgressEntry, 'complete
       feeling: nextEntry.feeling,
       calories: nextEntry.calories,
     })
-  })
+  }).catch(err => console.warn('[Supabase] sync failed', err))
   return nextEntry
 }
 
@@ -102,8 +107,16 @@ export function saveCardioSession(entry: Omit<WorkoutProgressEntry, 'completed' 
       calories: nextEntry.calories,
       feeling: nextEntry.feeling,
     })
-  })
+  }).catch(err => console.warn('[Supabase] sync failed', err))
   return nextEntry
+}
+
+export function updateWorkoutEntry(id: string, patch: Partial<Pick<WorkoutProgressEntry, 'difficulty' | 'completion' | 'feeling' | 'pain' | 'notes'>>) {
+  const entries = getWorkoutProgress()
+  const idx = entries.findIndex(e => e.id === id)
+  if (idx === -1) return
+  entries[idx] = { ...entries[idx], ...patch }
+  writeJson(WORKOUT_PROGRESS_KEY, entries)
 }
 
 /**
@@ -157,6 +170,16 @@ export function getProgressData(): ProgressData {
     mealPlans: getSavedMealPlans(),
     workouts: getWorkoutProgress(),
   }
+}
+
+/**
+ * Returns the most recent exerciseWeights record for a given workout type.
+ * Used by WorkoutPage to show progressive overload hints.
+ */
+export function getLastWorkoutWeights(workoutType: string): Record<string, number> {
+  const entries = getWorkoutProgress()
+    .filter(e => e.type === workoutType && e.exerciseWeights && Object.keys(e.exerciseWeights).length > 0)
+  return entries[0]?.exerciseWeights ?? {}
 }
 
 export function clearProgressData() {

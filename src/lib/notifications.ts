@@ -1,3 +1,5 @@
+import { saveNotificationAccess } from './appAccess'
+
 const REMINDER_KEY = 'smartfit_notif_timer_id'
 
 export function notificationsSupported() {
@@ -5,15 +7,29 @@ export function notificationsSupported() {
 }
 
 export async function requestPermission(): Promise<boolean> {
-  if (!notificationsSupported()) return false
-  if (Notification.permission === 'granted') return true
-  if (Notification.permission === 'denied') return false
+  if (!notificationsSupported()) {
+    saveNotificationAccess('unsupported', 'browser')
+    return false
+  }
+  if (Notification.permission === 'granted') {
+    saveNotificationAccess('granted', 'browser')
+    return true
+  }
+  if (Notification.permission === 'denied') {
+    saveNotificationAccess('denied', 'browser')
+    return false
+  }
   const result = await Notification.requestPermission()
+  saveNotificationAccess(result, 'browser')
   return result === 'granted'
 }
 
 export function getPermissionState(): NotificationPermission | 'unsupported' {
-  if (!notificationsSupported()) return 'unsupported'
+  if (!notificationsSupported()) {
+    saveNotificationAccess('unsupported', 'browser')
+    return 'unsupported'
+  }
+  saveNotificationAccess(Notification.permission, 'browser')
   return Notification.permission
 }
 

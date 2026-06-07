@@ -8,6 +8,7 @@ export interface Macros {
 export interface MealOption {
   id: string
   name: string
+  nameEn: string
   description: string
   macros: Macros
   ingredients: string[]
@@ -17,6 +18,7 @@ export interface MealOption {
 export interface MealCategory {
   id: 'breakfast' | 'lunch' | 'dinner'
   label: string
+  labelEn: string
   emoji: string
   options: MealOption[]
 }
@@ -24,94 +26,156 @@ export interface MealCategory {
 export const mockMeals: MealCategory[] = [
   {
     id: 'breakfast',
-    label: 'Breakfast',
+    label: 'בוקר',
+    labelEn: 'Breakfast',
     emoji: '🌅',
     options: [
       {
         id: 'b1',
-        name: 'Protein Oats',
-        description: 'Creamy oats with whey protein and banana',
+        name: 'שיבולת שועל עם חלבון',
+        nameEn: 'Protein Oats',
+        description: 'שיבולת שועל קרמית עם אבקת חלבון ובננה',
         macros: { calories: 420, protein: 32, carbs: 55, fat: 8 },
-        ingredients: ['80g rolled oats', '1 scoop whey protein', '1 banana', '250ml milk', '1 tbsp almond butter'],
-        prepSteps: ['Heat milk in a pot over medium heat.', 'Add oats and stir for 5 minutes until creamy.', 'Remove from heat, mix in protein powder.', 'Top with sliced banana and almond butter.'],
+        ingredients: ['80 גרם שיבולת שועל', 'כף אבקת חלבון', 'בננה אחת', '250 מ"ל חלב', 'כף חמאת שקדים'],
+        prepSteps: [
+          'מחממים חלב בסיר על אש בינונית.',
+          'מוסיפים שיבולת שועל ומערבבים 5 דקות עד לקבלת מרקם קרמי.',
+          'מורידים מהאש ומערבבים פנימה את אבקת החלבון.',
+          'מגישים עם פרוסות בננה וחמאת שקדים מעל.',
+        ],
       },
       {
         id: 'b2',
-        name: 'Egg & Veggie Scramble',
-        description: '3-egg scramble with spinach and peppers',
+        name: 'ביצים עם ירקות',
+        nameEn: 'Egg & Veggie Scramble',
+        description: 'חביתה מקושקשת עם תרד ופלפלים',
         macros: { calories: 320, protein: 26, carbs: 10, fat: 18 },
-        ingredients: ['3 eggs', '1 cup spinach', '½ bell pepper', '¼ onion', '1 tbsp olive oil', 'salt & pepper'],
-        prepSteps: ['Heat olive oil in a pan.', 'Sauté chopped onion and pepper for 3 minutes.', 'Add spinach and cook 1 minute.', 'Pour in beaten eggs and scramble until just set.', 'Season with salt and pepper.'],
+        ingredients: ['3 ביצים', 'כוס תרד', 'חצי פלפל', 'רבע בצל', 'כף שמן זית', 'מלח ופלפל'],
+        prepSteps: [
+          'מחממים שמן זית במחבת.',
+          'מטגנים בצל ופלפל קצוצים 3 דקות.',
+          'מוסיפים תרד ומבשלים דקה.',
+          'יוצקים ביצים טרופות ומקשקשים עד לקבלת קרישה.',
+          'מתבלים במלח ופלפל.',
+        ],
       },
       {
         id: 'b3',
-        name: 'Greek Yogurt Bowl',
-        description: 'High-protein yogurt with granola and berries',
+        name: 'קערת יוגורט יווני',
+        nameEn: 'Greek Yogurt Bowl',
+        description: 'יוגורט עשיר בחלבון עם גרנולה ופירות יער',
         macros: { calories: 370, protein: 22, carbs: 48, fat: 9 },
-        ingredients: ['200g Greek yogurt (0%)', '40g granola', '½ cup mixed berries', '1 tsp honey', '1 tbsp chia seeds'],
-        prepSteps: ['Spoon yogurt into a bowl.', 'Top with granola, berries, and chia seeds.', 'Drizzle honey on top. Serve immediately.'],
+        ingredients: ['200 גרם יוגורט יווני 0%', '40 גרם גרנולה', 'חצי כוס פירות יער מעורבים', 'כפית דבש', 'כף זרעי צ\'יה'],
+        prepSteps: [
+          'מניחים יוגורט בקערה.',
+          'מפזרים גרנולה, פירות יער וזרעי צ\'יה מעל.',
+          'מזלפים דבש ומגישים מיד.',
+        ],
       },
     ],
   },
   {
     id: 'lunch',
-    label: 'Lunch',
+    label: 'צהריים',
+    labelEn: 'Lunch',
     emoji: '☀️',
     options: [
       {
         id: 'l1',
-        name: 'Chicken Rice Bowl',
-        description: 'Grilled chicken breast with brown rice and greens',
+        name: 'קערת עוף ואורז',
+        nameEn: 'Chicken Rice Bowl',
+        description: 'חזה עוף על הגריל עם אורז מלא וברוקולי',
         macros: { calories: 520, protein: 45, carbs: 52, fat: 11 },
-        ingredients: ['150g chicken breast', '100g brown rice (dry)', '1 cup broccoli', '1 tbsp olive oil', 'garlic, salt, pepper'],
-        prepSteps: ['Cook brown rice according to package instructions.', 'Season chicken with garlic, salt, and pepper.', 'Grill chicken 6 minutes per side until cooked through.', 'Steam broccoli for 4 minutes.', 'Assemble bowl and drizzle with olive oil.'],
+        ingredients: ['150 גרם חזה עוף', '100 גרם אורז מלא (יבש)', 'כוס ברוקולי', 'כף שמן זית', 'שום, מלח, פלפל'],
+        prepSteps: [
+          'מבשלים אורז מלא לפי הוראות האריזה.',
+          'מתבלים עוף בשום, מלח ופלפל.',
+          'צולים עוף 6 דקות מכל צד עד לבישול מלא.',
+          'מאדים ברוקולי 4 דקות.',
+          'מרכיבים קערה ומזלפים שמן זית.',
+        ],
       },
       {
         id: 'l2',
-        name: 'Tuna Wrap',
-        description: 'Whole wheat wrap with tuna, greens, and avocado',
+        name: 'רול טונה',
+        nameEn: 'Tuna Wrap',
+        description: 'לאפה מחיטה מלאה עם טונה, ירק ואבוקדו',
         macros: { calories: 440, protein: 38, carbs: 36, fat: 14 },
-        ingredients: ['1 whole wheat tortilla', '1 can tuna in water', '¼ avocado', 'lettuce', '1 tbsp Greek yogurt', 'lemon juice'],
-        prepSteps: ['Drain tuna and mix with Greek yogurt and lemon juice.', 'Mash avocado with a fork and season.', 'Lay tortilla flat, add lettuce, tuna mix, and avocado.', 'Roll tightly and serve.'],
+        ingredients: ['לאפה מחיטה מלאה', 'פחית טונה במים', 'רבע אבוקדו', 'חסה', 'כף יוגורט יווני', 'מיץ לימון'],
+        prepSteps: [
+          'מסננים טונה ומערבבים עם יוגורט ומיץ לימון.',
+          'מועכים אבוקדו ומתבלים.',
+          'פורסים לאפה ומניחים חסה, תערובת טונה ואבוקדו.',
+          'מגלגלים היטב ומגישים.',
+        ],
       },
       {
         id: 'l3',
-        name: 'Lentil Salad',
-        description: 'High-fiber lentils with roasted veggies',
+        name: 'סלט עדשים',
+        nameEn: 'Lentil Salad',
+        description: 'עדשים עתירות סיבים עם ירקות צלויים',
         macros: { calories: 390, protein: 22, carbs: 58, fat: 9 },
-        ingredients: ['150g cooked lentils', '1 zucchini', '1 tomato', '½ cucumber', '2 tbsp olive oil', 'lemon, herbs'],
-        prepSteps: ['Dice zucchini and roast at 200°C for 20 minutes.', 'Combine lentils, chopped tomato, and cucumber.', 'Add roasted zucchini.', 'Dress with olive oil, lemon juice, and fresh herbs.'],
+        ingredients: ['150 גרם עדשים מבושלות', 'קישוא אחד', 'עגבנייה', 'חצי מלפפון', '2 כפות שמן זית', 'לימון, עשבי תיבול'],
+        prepSteps: [
+          'חותכים קישוא לקוביות וצולים ב-200° למשך 20 דקות.',
+          'מערבבים עדשים, עגבנייה וחצי מלפפון קצוצים.',
+          'מוסיפים קישוא צלוי.',
+          'מתבלים בשמן זית, מיץ לימון ועשבי תיבול טריים.',
+        ],
       },
     ],
   },
   {
     id: 'dinner',
-    label: 'Dinner',
+    label: 'ערב',
+    labelEn: 'Dinner',
     emoji: '🌙',
     options: [
       {
         id: 'd1',
-        name: 'Salmon & Quinoa',
-        description: 'Baked salmon fillet with quinoa and asparagus',
+        name: 'סלמון וקינואה',
+        nameEn: 'Salmon & Quinoa',
+        description: 'פילה סלמון אפוי עם קינואה ואספרגוס',
         macros: { calories: 550, protein: 48, carbs: 38, fat: 22 },
-        ingredients: ['180g salmon fillet', '80g quinoa (dry)', '150g asparagus', '1 lemon', '1 tbsp olive oil', 'dill, salt, pepper'],
-        prepSteps: ['Preheat oven to 200°C.', 'Season salmon with lemon juice, dill, salt, and pepper.', 'Bake salmon 15-18 minutes.', 'Cook quinoa according to package.', 'Roast asparagus with olive oil for 12 minutes.', 'Plate together.'],
+        ingredients: ['180 גרם פילה סלמון', '80 גרם קינואה (יבש)', '150 גרם אספרגוס', 'לימון אחד', 'כף שמן זית', 'שמיר, מלח, פלפל'],
+        prepSteps: [
+          'מחממים תנור ל-200°.',
+          'מתבלים סלמון במיץ לימון, שמיר, מלח ופלפל.',
+          'אופים סלמון 15-18 דקות.',
+          'מבשלים קינואה לפי הוראות האריזה.',
+          'צולים אספרגוס בשמן זית 12 דקות.',
+          'מגישים יחד.',
+        ],
       },
       {
         id: 'd2',
-        name: 'Turkey Meatballs',
-        description: 'Lean turkey meatballs in tomato sauce with pasta',
+        name: 'כדורי בשר הודו',
+        nameEn: 'Turkey Meatballs',
+        description: 'כדורי הודו רזים ברוטב עגבניות עם פסטה',
         macros: { calories: 490, protein: 40, carbs: 48, fat: 13 },
-        ingredients: ['200g ground turkey', '80g whole wheat pasta', '½ cup tomato sauce', '1 egg', 'garlic, Italian herbs'],
-        prepSteps: ['Mix turkey with egg, garlic, and herbs. Form into balls.', 'Brown meatballs in a pan for 3 minutes each side.', 'Add tomato sauce, cover and simmer 10 minutes.', 'Cook pasta al dente.', 'Serve meatballs and sauce over pasta.'],
+        ingredients: ['200 גרם הודו טחון', '80 גרם פסטה מחיטה מלאה', 'חצי כוס רוטב עגבניות', 'ביצה אחת', 'שום, עשבי תיבול איטלקיים'],
+        prepSteps: [
+          'מערבבים הודו עם ביצה, שום ועשבי תיבול. מגלגלים לכדורים.',
+          'מטגנים כדורים 3 דקות מכל צד.',
+          'מוסיפים רוטב עגבניות, מכסים ומבשלים 10 דקות.',
+          'מבשלים פסטה אל-דנטה.',
+          'מגישים כדורים ורוטב מעל הפסטה.',
+        ],
       },
       {
         id: 'd3',
-        name: 'Stir-Fry Tofu',
-        description: 'Crispy tofu with vegetables and soy-ginger sauce',
+        name: 'מוקפץ טופו',
+        nameEn: 'Stir-Fry Tofu',
+        description: 'טופו פריך עם ירקות ורוטב סויה-ג\'ינג\'ר',
         macros: { calories: 380, protein: 24, carbs: 34, fat: 16 },
-        ingredients: ['200g firm tofu', '1 cup mixed veggies', '2 tbsp soy sauce', '1 tsp ginger', '1 tsp sesame oil', '80g brown rice'],
-        prepSteps: ['Press tofu dry and cut into cubes.', 'Pan-fry tofu until golden on all sides.', 'Stir-fry vegetables in sesame oil with ginger.', 'Add soy sauce and tofu, toss together.', 'Serve over cooked brown rice.'],
+        ingredients: ['200 גרם טופו קשה', 'כוס ירקות מעורבים', '2 כפות רוטב סויה', 'כפית ג\'ינג\'ר', 'כפית שמן שומשום', '80 גרם אורז מלא'],
+        prepSteps: [
+          'מייבשים טופו וחותכים לקוביות.',
+          'מטגנים טופו עד להזהבה מכל הצדדים.',
+          'מקפיצים ירקות בשמן שומשום עם ג\'ינג\'ר.',
+          'מוסיפים רוטב סויה וטופו, מערבבים.',
+          'מגישים מעל אורז מבושל.',
+        ],
       },
     ],
   },
@@ -125,15 +189,15 @@ export interface MockMealFromIngredients {
 }
 
 export const mockMealFromIngredients: MockMealFromIngredients = {
-  name: 'Veggie Egg Fried Rice',
-  ingredients: ['2 eggs', '100g leftover rice', '½ cup frozen peas', '1 carrot', '2 tbsp soy sauce', '1 tsp sesame oil'],
+  name: 'אורז מוקפץ עם ביצה וירקות',
+  ingredients: ['2 ביצים', '100 גרם אורז מבושל', 'חצי כוס אפונה קפואה', 'גזר אחד', '2 כפות רוטב סויה', 'כפית שמן שומשום'],
   macros: { calories: 410, protein: 20, carbs: 52, fat: 12 },
   prepSteps: [
-    'Beat eggs and scramble in a hot wok. Set aside.',
-    'Stir-fry diced carrot and peas for 3 minutes.',
-    'Add cold rice and stir-fry on high heat for 2 minutes.',
-    'Push rice to the side, add eggs back in.',
-    'Mix everything, add soy sauce and sesame oil.',
-    'Serve immediately.',
+    'טורפים ביצים ומקשקשים בווק חם. מניחים בצד.',
+    'מקפיצים גזר קצוץ ואפונה 3 דקות.',
+    'מוסיפים אורז קר ומקפיצים על אש גבוהה 2 דקות.',
+    'דוחפים אורז לצד ומחזירים ביצים.',
+    'מערבבים הכל, מוסיפים רוטב סויה ושמן שומשום.',
+    'מגישים מיד.',
   ],
 }

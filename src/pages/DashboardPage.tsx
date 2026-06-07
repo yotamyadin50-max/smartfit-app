@@ -1,8 +1,17 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useUser } from '../context/UserContext'
+import { getProfileGoals } from '../context/UserContext'
 import { useI18n } from '../context/I18nContext'
 import { getAnimalProgress } from '../lib/animalRanks'
+import { getTodayCheckin, saveTodayCheckin, type FeelingEmoji } from '../lib/dailyCheckin'
+
+const FEELINGS: { emoji: FeelingEmoji; labelHe: string; labelEn: string }[] = [
+  { emoji: '😴', labelHe: 'עייף', labelEn: 'Tired' },
+  { emoji: '😐', labelHe: 'בסדר', labelEn: 'OK' },
+  { emoji: '💪', labelHe: 'מעולה', labelEn: 'Great' },
+]
 
 function getGreeting(isHebrew: boolean) {
   const h = new Date().getHours()
@@ -13,13 +22,18 @@ function getGreeting(isHebrew: boolean) {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const { stats } = useUser()
+  const { profile, stats } = useUser()
   const { isHebrew } = useI18n()
   const navigate = useNavigate()
+  const [todayFeeling, setTodayFeeling] = useState<FeelingEmoji | null>(() => getTodayCheckin()?.feeling ?? null)
 
-  const displayName = user?.email?.split('@')[0] ?? (isHebrew ? 'ספורטאי' : 'Athlete')
-  const animalProgress = getAnimalProgress(stats)
-  const xpLeft = animalProgress.xpToNextLevel
+  const displayName =
+    profile.name?.trim() ||
+    user?.email?.split('@')[0] ||
+    (isHebrew ? 'ספורטאי' : 'Athlete')
+  const animalProgress  = getAnimalProgress(stats)
+  const xpLeft          = animalProgress.xpToNextLevel
+  const hasCuttingGoal  = getProfileGoals(profile).includes('cut')
 
   return (
     <div className="dash-fullscreen">
@@ -53,6 +67,38 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Daily check-in ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', marginBottom: 4 }}>
+        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap' }}>
+          {isHebrew ? 'איך אתה מרגיש היום?' : 'How do you feel today?'}
+        </span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {FEELINGS.map(f => (
+            <button
+              key={f.emoji}
+              onClick={() => { saveTodayCheckin(f.emoji); setTodayFeeling(f.emoji) }}
+              title={isHebrew ? f.labelHe : f.labelEn}
+              style={{
+                fontSize: 22,
+                background: todayFeeling === f.emoji ? 'rgba(168,85,247,0.25)' : 'rgba(255,255,255,0.07)',
+                border: todayFeeling === f.emoji ? '1.5px solid #a855f7' : '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 10,
+                padding: '3px 8px',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              {f.emoji}
+            </button>
+          ))}
+        </div>
+        {todayFeeling && (
+          <span style={{ fontSize: 12, color: '#a5b4fc', marginInlineStart: 4 }}>
+            {isHebrew ? '✓ נשמר' : '✓ Saved'}
+          </span>
+        )}
+      </div>
+
       {/* ── Buttons grid ── */}
       <div className="dash-grid">
 
@@ -70,21 +116,21 @@ export default function DashboardPage() {
 
         {/* Row 2: 1 big button */}
         <div className="dash-row dash-row-1">
-          <button className="dash-btn dash-btn-wide" onClick={() => navigate('/nutrition')}>
-            <span className="dash-btn-icon">🥗</span>
-            <span className="dash-btn-name">{isHebrew ? 'תזונה ותפריט' : 'Nutrition & Menu'}</span>
+          <button className="dash-btn dash-btn-wide" onClick={() => navigate(hasCuttingGoal ? '/shredding' : '/nutrition')}>
+            <span className="dash-btn-icon">{hasCuttingGoal ? '🔥' : '🥗'}</span>
+            <span className="dash-btn-name">{hasCuttingGoal ? (isHebrew ? 'חיטוב' : 'Shredding') : (isHebrew ? 'תזונה ותפריט' : 'Nutrition & Menu')}</span>
           </button>
         </div>
 
-        {/* Row 3: 1 big button */}
+        {/* Row 3: friends */}
         <div className="dash-row dash-row-1">
-          <button className="dash-btn dash-btn-wide" onClick={() => navigate('/workout?mode=custom')}>
-            <span className="dash-btn-icon">⚡</span>
-            <span className="dash-btn-name">{isHebrew ? 'צור אימון חד-פעמי' : 'Create One-Time Workout'}</span>
+          <button className="dash-btn dash-btn-wide" onClick={() => navigate('/social')}>
+            <span className="dash-btn-icon">👥</span>
+            <span className="dash-btn-name">{isHebrew ? 'חברים ואימון משותף' : 'Friends & Co-Workout'}</span>
           </button>
         </div>
 
-        {/* Row 4: 2 buttons */}
+        {/* Row 4: 3 buttons */}
         <div className="dash-row dash-row-2">
           <button className="dash-btn" onClick={() => navigate('/wearable')}>
             <span className="dash-btn-icon">⌚</span>
@@ -96,13 +142,15 @@ export default function DashboardPage() {
           </button>
         </div>
 
-      </div>
+        {/* Row 5: cardio */}
+        <div className="dash-row dash-row-1">
+          <button className="dash-btn dash-btn-wide" onClick={() => navigate('/cardio')}>
+            <span className="dash-btn-icon">🏃</span>
+            <span className="dash-btn-name">{isHebrew ? 'אימון קרדיו' : 'Cardio Session'}</span>
+          </button>
+        </div>
 
-      {/* ── Floating AI chat button ── */}
-      <button className="dash-ai-fab" onClick={() => navigate('/chat')} aria-label="AI Chat">
-        <span>🤖</span>
-        <span className="dash-ai-fab-label">{isHebrew ? 'AI' : 'AI'}</span>
-      </button>
+      </div>
 
     </div>
   )

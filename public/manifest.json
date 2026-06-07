@@ -1,6 +1,6 @@
 {
-  "name": "SmartFit - AI Fitness Coach",
-  "short_name": "SmartFit",
+  "name": "Ascend AI - Fitness Coach",
+  "short_name": "Ascend AI",
   "description": "מאמן כושר ותזונה מבוסס AI. אימונים, תפריטים ומעקב התקדמות מותאמים אישית.",
   "start_url": "/",
   "display": "standalone",
@@ -66,7 +66,7 @@
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "SmartFit Dashboard"
+      "label": "Ascend AI Dashboard"
     }
   ],
   "shortcuts": [

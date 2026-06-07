@@ -50,7 +50,7 @@ if (chatRoot) {
     <section class="sf-ai-chat-panel" aria-label="Floating AI chat" hidden>
       <header class="sf-ai-chat-header">
         <div>
-          <p class="sf-ai-chat-kicker">SmartFit AI</p>
+          <p class="sf-ai-chat-kicker">Ascend AI</p>
           <h2 class="sf-ai-chat-title">AI Coach</h2>
         </div>
         <button class="sf-ai-chat-close" type="button" aria-label="Close AI chat">&times;</button>
@@ -150,7 +150,7 @@ if (chatRoot) {
       loadingBubble.classList.remove('sf-ai-chat-message-loading')
       loadingBubble.querySelector('p').textContent = reply.trim() || getCopy().emptyReply
     } catch (error) {
-      console.log('SmartFit floating AI final failure', error)
+      console.log('Ascend AI floating AI final failure', error)
       const fallback = handleFallback({ userMessage: cleanMessage })
       loadingBubble.classList.remove('sf-ai-chat-message-loading')
       loadingBubble.querySelector('p').textContent = formatReply(fallback)

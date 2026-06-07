@@ -1,20 +1,29 @@
 /**
  * supabaseDb.ts
  *
- * All database read/write operations for SmartFit.
+ * All database read/write operations for Ascend AI.
  * The app is LOCAL-FIRST: localStorage is always the source of truth.
  * These functions sync data to/from Supabase in the background.
  *
  * Every function is safe to call even when Supabase is not configured —
  * they check isSupabaseConfigured and no-op silently.
  *
- * Console prefix: [SmartFit DB] — filter by this in DevTools to see all sync activity.
+ * Console prefix: [Ascend AI DB] — filter by this in DevTools to see all sync activity.
  */
 
 import { isSupabaseConfigured, supabase } from './supabase'
 import type { UserProfile, UserStats } from '../context/UserContext'
+import type { FoodEntry, WeightEntry, SavedMeal, ShredGoal, ManualBurnEntry } from './shredStorage'
 
-const TAG = '[SmartFit DB]'
+export interface ShredData {
+  foodLog: FoodEntry[]
+  weightLog: WeightEntry[]
+  savedMeals: SavedMeal[]
+  goal: ShredGoal | null
+  manualBurnLog: ManualBurnEntry[]
+}
+
+const TAG = '[Ascend AI DB]'
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 
@@ -242,12 +251,47 @@ export async function loadUserDataFromSupabase(userId: string) {
 
   console.log(TAG, '🔄 loading user data from cloud...', { userId })
 
-  const [profile, stats] = await Promise.all([
+  const [profile, stats, shredData] = await Promise.all([
     loadProfileFromSupabase(userId),
     loadStatsFromSupabase(userId),
+    loadShredDataFromSupabase(userId),
   ])
 
+  // Restore shred data to localStorage so ShredPage reads it immediately
+  if (shredData) {
+    try {
+      if (shredData.foodLog?.length)      localStorage.setItem('smartfit_shred_food',         JSON.stringify(shredData.foodLog))
+      if (shredData.weightLog?.length)    localStorage.setItem('smartfit_shred_weight',       JSON.stringify(shredData.weightLog))
+      if (shredData.savedMeals?.length)   localStorage.setItem('smartfit_shred_saved_meals',  JSON.stringify(shredData.savedMeals))
+      if (shredData.goal)                 localStorage.setItem('smartfit_shred_goal',          JSON.stringify(shredData.goal))
+      if (shredData.manualBurnLog?.length) localStorage.setItem('smartfit_shred_manual_burn', JSON.stringify(shredData.manualBurnLog))
+      console.log(TAG, '✅ shred_data restored to localStorage')
+    } catch { /* quota */ }
+  }
+
   return { profile, stats }
+}
+
+// ── Shred data ────────────────────────────────────────────────────────────────
+
+export async function saveShredDataToSupabase(userId: string, data: ShredData): Promise<void> {
+  if (!isSupabaseConfigured) return
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({ id: userId, shred_data: data, updated_at: new Date().toISOString() })
+  if (error) console.warn(TAG, '❌ save shred_data failed', error.message)
+  else console.log(TAG, '✅ shred_data saved')
+}
+
+export async function loadShredDataFromSupabase(userId: string): Promise<ShredData | null> {
+  if (!isSupabaseConfigured) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('shred_data')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) { console.warn(TAG, '❌ load shred_data failed', error.message); return null }
+  return (data?.shred_data as ShredData) ?? null
 }
 
 // ── Connection check ──────────────────────────────────────────────────────────

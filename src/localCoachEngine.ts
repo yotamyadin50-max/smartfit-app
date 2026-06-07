@@ -429,6 +429,7 @@ function getProfileEquipment(profile?: Partial<UserProfile>): Equipment {
   const equipment = profile?.equipment ?? []
   if (equipment.includes('dumbbells')) return 'dumbbells'
   if (equipment.includes('bands')) return 'band'
+  if (equipment.includes('pullup_bar')) return 'bar'
   if (equipment.includes('gym')) return 'dumbbells'
   return 'bodyweight'
 }
@@ -769,7 +770,10 @@ function formatExactStrengthWorkout(title: string, options: SmartWorkoutOptions,
   const level = options.level ?? extractLevel(message) ?? getProfileLevel(options.profile)
   const focus = options.focus ?? extractBodyFocus(message)
   const goal = options.goal ?? getGoalFromMessage(message) ?? options.profile?.goal
-  const equipment = options.equipment ?? (message.trim() ? extractEquipment(message) : getProfileEquipment(options.profile))
+  let equipment = options.equipment ?? (message.trim() ? extractEquipment(message) : getProfileEquipment(options.profile))
+  if (!options.equipment && mode === 'home' && focus === 'back' && options.profile?.equipment?.includes('pullup_bar')) {
+    equipment = 'bar'
+  }
   const names = language === 'en'
     ? pickEnglishExercises(mode, focus)
     : mode === 'gym'

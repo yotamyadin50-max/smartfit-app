@@ -10,6 +10,10 @@ export const isSupabaseConfigured =
   typeof supabaseKey === 'string' && supabaseKey.length > 20 &&
   (supabaseKey.startsWith('sb_publishable_') || supabaseKey.startsWith('eyJ'))
 
+if (!isSupabaseConfigured && import.meta.env.DEV) {
+  console.error('[Supabase] credentials missing — check .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)')
+}
+
 /**
  * Supabase client.
  * Always non-null — if credentials are missing it is created with dummy values

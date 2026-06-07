@@ -28,7 +28,10 @@ export type HybridAiRequest = {
   userMessage: string
 }
 
-const AI_ENDPOINT = '/api/ai'
+// In the web build VITE_API_BASE_URL is empty (relative URL works).
+// In the native Capacitor build set VITE_API_BASE_URL=https://your-deploy.vercel.app
+// so the APK calls the real server instead of timing-out on a missing local endpoint.
+const AI_ENDPOINT = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '') + '/api/ai'
 const AI_BASE_TIMEOUT_MS = 45000
 const AI_EXTENDED_TIMEOUT_MS = 60000
 const AI_SLOW_REQUEST_MS = 10000
@@ -325,7 +328,7 @@ function logAiRequestFailure({
       : undefined
   const message = getAbortErrorMessage(error) || (typeof error === 'string' ? error : undefined)
 
-  console.error('SmartFit AI request failed', {
+  console.error('Ascend AI request failed', {
     aborted,
     attempt,
     endpoint: getErrorField(error, 'endpoint') ?? AI_ENDPOINT,
@@ -445,7 +448,7 @@ export function handleFallback(request: Pick<HybridAiRequest, 'language' | 'prof
       }
     }
   } catch (error) {
-    console.log('SmartFit local fallback failed', error)
+    console.log('Ascend AI local fallback failed', error)
   }
 
   return {

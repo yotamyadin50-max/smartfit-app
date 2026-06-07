@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.smartfit.app',
-  appName: 'SmartFit',
+  appName: 'Ascend AI',
   webDir: 'dist',
   server: {
     // Use https scheme on Android for secure cookies and modern web APIs

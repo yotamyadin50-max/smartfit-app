@@ -1,11 +1,12 @@
 import PageHeader from '../components/layout/PageHeader'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useI18n } from '../context/I18nContext'
 
 import {
   getReminders, saveReminder, deleteReminder, toggleReminder,
   createReminder, formatReminderDays, requestNotificationPermission,
-  sendTestNotification, DAY_LABELS_HE, DAY_LABELS_EN,
+  syncScheduledReminders, getNotificationPermissionGranted,
+  DAY_LABELS_HE, DAY_LABELS_EN,
   type Reminder,
 } from '../lib/remindersService'
 
@@ -14,7 +15,7 @@ export default function RemindersPage() {
 
   const [reminders, setReminders] = useState<Reminder[]>(() => getReminders())
   const [showForm, setShowForm] = useState(false)
-  const [notifGranted, setNotifGranted] = useState(Notification.permission === 'granted')
+  const [notifGranted, setNotifGranted] = useState(false)
 
   // Form state
   const [formTime, setFormTime] = useState('08:00')
@@ -26,11 +27,17 @@ export default function RemindersPage() {
   const t = (en: string, he: string) => isHebrew ? he : en
   const dayLabels = isHebrew ? DAY_LABELS_HE : DAY_LABELS_EN
 
+  useEffect(() => {
+    getNotificationPermissionGranted().then(setNotifGranted)
+    syncScheduledReminders(isHebrew).catch(error => console.log('[Reminders] sync failed', error))
+  }, [isHebrew])
+
   const reload = () => setReminders(getReminders())
 
   const handleRequestPermission = async () => {
     const granted = await requestNotificationPermission()
     setNotifGranted(granted)
+    if (granted) await syncScheduledReminders(isHebrew)
   }
 
   const toggleDay = (day: number) => {
@@ -39,8 +46,10 @@ export default function RemindersPage() {
     )
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (formDays.length === 0) return
+    const granted = notifGranted || await requestNotificationPermission()
+    setNotifGranted(granted)
     const r = createReminder({
       label: formLabel || t('Workout reminder', 'תזכורת אימון'),
       time: formTime,
@@ -51,6 +60,7 @@ export default function RemindersPage() {
     })
     saveReminder(r)
     reload()
+    if (granted) await syncScheduledReminders(isHebrew)
     setShowForm(false)
     setFormLabel('')
     setFormTime('08:00')
@@ -62,11 +72,13 @@ export default function RemindersPage() {
   const handleDelete = (id: string) => {
     deleteReminder(id)
     reload()
+    syncScheduledReminders(isHebrew).catch(error => console.log('[Reminders] sync failed after delete', error))
   }
 
   const handleToggle = (id: string) => {
     toggleReminder(id)
     reload()
+    syncScheduledReminders(isHebrew).catch(error => console.log('[Reminders] sync failed after toggle', error))
   }
 
   const card = {
@@ -105,75 +117,9 @@ export default function RemindersPage() {
           </p>
         </div>
 
-        {/* Reminders list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-          {reminders.length === 0 && !showForm && (
-            <div style={{ ...card, textAlign: 'center', padding: 32 }}>
-              <p style={{ fontSize: 40, margin: '0 0 10px' }}>⏰</p>
-              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: 0 }}>
-                {t('No reminders yet', 'אין תזכורות עדיין')}
-              </p>
-            </div>
-          )}
-
-          {reminders.map(r => (
-            <div key={r.id} style={{
-              ...card,
-              display: 'flex', alignItems: 'center', gap: 12,
-              opacity: r.enabled ? 1 : 0.5,
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: r.enabled ? '#22c55e' : '#888' }}>
-                    {r.time}
-                  </span>
-                  {r.sound && <span style={{ fontSize: 14 }}>🎵</span>}
-                  {r.repeat && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-                    {t('Weekly', 'שבועי')}
-                  </span>}
-                </div>
-                <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-                  {r.label}
-                </p>
-                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
-                  {formatReminderDays(r.days, isHebrew)}
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-                {/* Toggle */}
-                <button
-                  onClick={() => handleToggle(r.id)}
-                  style={{
-                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                    background: r.enabled ? '#22c55e' : 'rgba(255,255,255,0.15)',
-                    position: 'relative', transition: 'background 0.2s',
-                  }}
-                >
-                  <span style={{
-                    position: 'absolute', top: 3,
-                    left: r.enabled ? 22 : 3,
-                    width: 18, height: 18, borderRadius: '50%',
-                    background: '#fff', transition: 'left 0.2s',
-                  }} />
-                </button>
-                <button
-                  onClick={() => handleDelete(r.id)}
-                  style={{
-                    padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 11,
-                  }}
-                >
-                  {t('Delete', 'מחק')}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Add form */}
+        {/* Add form / Add button — always at the top */}
         {showForm ? (
-          <div style={{ ...card, border: '1.5px solid rgba(34,197,94,0.3)' }}>
+          <div style={{ ...card, border: '1.5px solid rgba(34,197,94,0.3)', marginBottom: 14 }}>
             <p style={{ margin: '0 0 14px', fontWeight: 800, fontSize: 16 }}>
               ➕ {t('New reminder', 'תזכורת חדשה')}
             </p>
@@ -249,21 +195,77 @@ export default function RemindersPage() {
             </div>
           </div>
         ) : (
-          <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowForm(true)}>
+          <button className="btn-primary" style={{ width: '100%', marginBottom: 14 }} onClick={() => setShowForm(true)}>
             ➕ {t('Add reminder', 'הוסף תזכורת')}
           </button>
         )}
 
-        {/* Test notification */}
-        {notifGranted && (
-          <button
-            className="btn-secondary"
-            style={{ width: '100%', marginTop: 10 }}
-            onClick={() => sendTestNotification(t('Test notification! 🐯', 'בדיקת התראה! 🐯'))}
-          >
-            🔔 {t('Test notification', 'בדיקת התראה')}
-          </button>
-        )}
+        {/* Reminders list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+          {reminders.length === 0 && !showForm && (
+            <div style={{ ...card, textAlign: 'center', padding: 32 }}>
+              <p style={{ fontSize: 40, margin: '0 0 10px' }}>⏰</p>
+              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: 0 }}>
+                {t('No reminders yet', 'אין תזכורות עדיין')}
+              </p>
+            </div>
+          )}
+
+          {reminders.map(r => (
+            <div key={r.id} style={{
+              ...card,
+              display: 'flex', alignItems: 'center', gap: 12,
+              opacity: r.enabled ? 1 : 0.5,
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: r.enabled ? '#22c55e' : '#888' }}>
+                    {r.time}
+                  </span>
+                  {r.sound && <span style={{ fontSize: 14 }}>🎵</span>}
+                  {r.repeat && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                    {t('Weekly', 'שבועי')}
+                  </span>}
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+                  {r.label}
+                </p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                  {formatReminderDays(r.days, isHebrew)}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                {/* Toggle */}
+                <button
+                  onClick={() => handleToggle(r.id)}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: r.enabled ? '#22c55e' : 'rgba(255,255,255,0.15)',
+                    position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 3,
+                    left: r.enabled ? 22 : 3,
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </button>
+                <button
+                  onClick={() => handleDelete(r.id)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 11,
+                  }}
+                >
+                  {t('Delete', 'מחק')}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
 
       </div>
     </div>
