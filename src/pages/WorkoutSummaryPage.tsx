@@ -78,11 +78,13 @@ export default function WorkoutSummaryPage() {
       })
     }
     // Persist pain flag so WorkoutPage can show a banner next session
-    if (pain === 'yes') {
-      localStorage.setItem('smartfit_pain_last_workout', 'true')
-    } else {
-      localStorage.removeItem('smartfit_pain_last_workout')
-    }
+    try {
+      if (pain === 'yes') {
+        localStorage.setItem('smartfit_pain_last_workout', 'true')
+      } else {
+        localStorage.removeItem('smartfit_pain_last_workout')
+      }
+    } catch { /* storage blocked */ }
     setSubmitted(true)
     if (navTimerRef.current) window.clearTimeout(navTimerRef.current)
     navTimerRef.current = window.setTimeout(() => navigate('/dashboard'), 1200)

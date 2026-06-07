@@ -1459,7 +1459,7 @@ function SelectWorkout({
   const aerobicName = isHebrew ? selectedAerobic.nameHe : selectedAerobic.name
   const aerobicSummary = isHebrew ? selectedAerobic.summaryHe : selectedAerobic.summary
 
-  const hadPainLastWorkout = localStorage.getItem('smartfit_pain_last_workout') === 'true'
+  const hadPainLastWorkout = (() => { try { return localStorage.getItem('smartfit_pain_last_workout') === 'true' } catch { return false } })()
 
   return (
     <div className="workout-preview">
@@ -1474,7 +1474,7 @@ function SelectWorkout({
             ? '⚠️ האימון האחרון שלך דווח כואב. שים לב לגופך היום ושקול הפחתת עצימות.'
             : '⚠️ You reported pain in your last workout. Listen to your body today and consider reducing intensity.'}
           <button
-            onClick={() => { localStorage.removeItem('smartfit_pain_last_workout') }}
+            onClick={() => { try { localStorage.removeItem('smartfit_pain_last_workout') } catch { /* storage blocked */ } }}
             style={{ marginInlineStart: 8, background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}
           >
             {isHebrew ? 'הבנתי' : 'Got it'}

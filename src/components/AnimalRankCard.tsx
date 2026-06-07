@@ -57,8 +57,11 @@ export default function AnimalRankCard({
   useEffect(() => {
     if (!showCelebration) return
 
-    const previousRank = Number(window.localStorage.getItem(LAST_SEEN_ANIMAL_RANK_KEY))
-    window.localStorage.setItem(LAST_SEEN_ANIMAL_RANK_KEY, String(progress.rankIndex))
+    let previousRank = NaN
+    try {
+      previousRank = Number(window.localStorage.getItem(LAST_SEEN_ANIMAL_RANK_KEY))
+      window.localStorage.setItem(LAST_SEEN_ANIMAL_RANK_KEY, String(progress.rankIndex))
+    } catch { /* storage blocked */ }
 
     if (Number.isFinite(previousRank) && progress.rankIndex > previousRank) {
       setCelebrating(true)
