@@ -38,7 +38,7 @@ export default function WorkoutSummaryPage() {
   const [submitted, setSubmitted] = useState(false)
   const [bonusAwarded, setBonusAwarded] = useState(false)
   const [earnedXP, setEarnedXP] = useState(120)
-  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navTimerRef = useRef<number | null>(null)
 
   useEffect(() => () => { if (navTimerRef.current) window.clearTimeout(navTimerRef.current) }, [])
 

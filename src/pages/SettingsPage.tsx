@@ -101,7 +101,7 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(profile.notificationsEnabled)
   const [reminderTime, setReminderTime] = useState(profile.reminderTime)
   const [saved, setSaved] = useState(false)
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimerRef = useRef<number | null>(null)
   const [editingPlan, setEditingPlan] = useState(false)
   const [notifPermission, setNotifPermission] = useState(getPermissionState)
 

@@ -271,7 +271,7 @@ function WeeklyMealPlanSection() {
   const { language } = useI18n()
   const { profile } = useUser()
   const [loading, setLoading] = useState(false)
-  const genTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const genTimerRef = useRef<number | null>(null)
   const [plan, setPlan] = useLocalStorage<WeeklyNutritionPlan | null>(
     'smartfit_weekly_nutrition_plan',
     null,
