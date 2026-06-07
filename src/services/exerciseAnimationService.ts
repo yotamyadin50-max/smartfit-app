@@ -105,7 +105,7 @@ function readCache(): ExerciseDbAnimation[] | null {
 
     return parsed.exercises
   } catch (error) {
-    console.log('[ExerciseDB] animation cache read failed', error)
+    console.warn('[ExerciseDB] animation cache read failed', error)
     return null
   }
 }
@@ -120,7 +120,7 @@ function writeCache(exercises: ExerciseDbAnimation[]) {
     }
     window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload))
   } catch (error) {
-    console.log('[ExerciseDB] animation cache write failed', error)
+    console.warn('[ExerciseDB] animation cache write failed', error)
   }
 }
 

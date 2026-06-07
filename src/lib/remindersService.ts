@@ -209,7 +209,7 @@ async function ensureNativeChannels() {
       vibration: false,
     })
   } catch (error) {
-    console.log('[Reminders] Could not create silent notification channel', error)
+    console.warn('[Reminders] Could not create silent notification channel', error)
   }
 }
 
@@ -219,7 +219,7 @@ async function cancelNativeScheduledReminders() {
   try {
     await LocalNotifications.cancel({ notifications: ids.map(id => ({ id })) })
   } catch (error) {
-    console.log('[Reminders] Could not cancel previous native reminders', error)
+    console.warn('[Reminders] Could not cancel previous native reminders', error)
   }
   writeJson(SCHEDULED_IDS_KEY, [])
 }
