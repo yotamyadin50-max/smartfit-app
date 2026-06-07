@@ -174,7 +174,9 @@ function getWorkoutDuration(value: number): UserProfile['workoutDuration'] {
   if (value <= 20) return 20
   if (value <= 30) return 30
   if (value <= 45) return 45
-  return 60
+  if (value <= 60) return 60
+  if (value <= 75) return 75
+  return 90
 }
 
 function sanitizeNumber(value: string, fallback: number, min: number, max: number) {
@@ -391,7 +393,7 @@ function StepBasic({ onNext, onSkip, step, total }: StepProps) {
   const [heightStr, setHeightStr] = useState('170')
   const [weight,    setWeight]    = useState('')
   // Metric by default for Hebrew, imperial for English
-  const [useMetric, setUseMetric] = useState(!isHebrew ? true : true)
+  const [useMetric, setUseMetric] = useState(true)
 
   const heightLabel = useMetric
     ? (isHebrew ? 'גובה (ס״מ)' : 'Height (cm)')
@@ -442,7 +444,15 @@ function StepBasic({ onNext, onSkip, step, total }: StepProps) {
           }}
         >{isHebrew ? '📏 מטרי (ק״ג, ס״מ)' : '📏 Metric (kg, cm)'}</button>
         <button type="button"
-          onClick={() => { setUseMetric(false); setLanguage('en') }}
+          onClick={() => {
+            // Convert current metric values to imperial before switching
+            const cmVal = parseFloat(heightStr)
+            if (Number.isFinite(cmVal) && useMetric) setHeightStr(String(Math.round(cmVal / 2.54)))
+            const kgVal = parseFloat(weight)
+            if (Number.isFinite(kgVal) && useMetric) setWeight(String(Math.round(kgVal * 2.20462)))
+            setUseMetric(false)
+            setLanguage('en')
+          }}
           style={{
             flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
             fontWeight: 700, fontSize: 13,
@@ -1910,7 +1920,7 @@ export default function OnboardingPage() {
       equipment: merged.equipment?.length ? merged.equipment : ['none'],
       nutrition: merged.nutrition ?? { eatsRegularly: true, mealsPerDay: 3 },
       health: merged.health ?? { energyLevel: 'medium', hasPainOrInjuries: false, sensitiveAreas: [], sleepHours: 7 },
-      habits: merged.habits ?? { dailyActivity: 'medium', fixedWorkoutTime: false, hardestPart: 'consistency' },
+      habits: merged.habits ?? { dailyActivity: 'medium', fixedWorkoutTime: false, hardestPart: 'consistency', workoutTimePreference: 'morning' },
       devices: merged.devices ?? { cardioLocation: false, smartScale: false, smartWatch: false },
     })
     navigate('/dashboard')

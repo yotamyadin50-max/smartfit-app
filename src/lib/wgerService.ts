@@ -31,7 +31,7 @@ export const CHOICE_TO_WGER_CATEGORY: Record<string, number> = {
   back: 12,
   chest: 11,
   legs: 9,
-  goal: 9,
+  goal: 8,  // arms — goal-based workout derives a specific category; this is the fallback for the browser
   gym: 9,
   aerobic: 15,
 }

@@ -12,7 +12,7 @@ import {
 } from '../lib/wgerService'
 import { GYM_EXERCISES_FALLBACK, type GymFocus, type GymExerciseTemplate } from '../data/gymExercises'
 import { getExercisesForCategory, type PoolExercise, type ExerciseCategory } from '../lib/exercisePool'
-import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type ScheduleFocus, type SensitiveArea, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
+import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type PainIntensity, type ScheduleFocus, type SensitiveArea, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
 import {
   mockAerobicWorkouts,
   mockWorkouts,
@@ -296,6 +296,16 @@ function hasPullupBar(profile: UserProfile) {
   return (profile.equipment ?? []).includes('pullup_bar')
 }
 
+// Deterministic shuffle using a day-based seed — same result within a day, different each day
+function shuffleWithSeed<T>(arr: T[], seed: number): T[] {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor((seed * (i + 1)) % (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
 function selectHomeExercises(category: HomeWorkoutCategory, profile: UserProfile, count: number) {
   const resolvedCategory = resolveHomeWorkoutCategory(category, profile)
   const preferredWorkouts = [
@@ -315,7 +325,10 @@ function selectHomeExercises(category: HomeWorkoutCategory, profile: UserProfile
     })
   })
 
-  return Array.from(unique.values()).slice(0, count)
+  // Shuffle daily — same order within a day, different between days (E5)
+  const daySeed = Math.floor(Date.now() / (1000 * 60 * 60 * 24)) % 7
+  const shuffled = shuffleWithSeed(Array.from(unique.values()), daySeed)
+  return shuffled.slice(0, count)
 }
 
 function buildHomeWorkout(choice: HomeWorkoutCategory, profile: UserProfile): Workout {
@@ -325,12 +338,17 @@ function buildHomeWorkout(choice: HomeWorkoutCategory, profile: UserProfile): Wo
   const exerciseCount = getHomeExerciseCount(duration)
   const sets = getHomeSetTarget(profile.fitnessLevel, duration)
   const restSeconds = getHomeRestSeconds(profile.fitnessLevel, duration)
-  const exercises = selectHomeExercises(choice, profile, exerciseCount).map((exercise, index) => ({
+  const rawExercises = selectHomeExercises(choice, profile, exerciseCount).map((exercise, index) => ({
     ...exercise,
     id: `${category}-${duration}-${exercise.id}-${index}`,
     restSeconds,
     sets,
   }))
+
+  // E2 — apply safety filter; fall back to all exercises if not enough safe ones remain
+  const sensitiveAreas = (profile.health?.sensitiveAreas ?? []) as SensitiveArea[]
+  const { filtered: safeExercises } = filterExercisesForSensitiveAreas(rawExercises, sensitiveAreas, profile.health?.painIntensity)
+  const exercises = safeExercises.length >= 3 ? safeExercises : rawExercises
 
   return {
     ...baseWorkout,
@@ -341,21 +359,12 @@ function buildHomeWorkout(choice: HomeWorkoutCategory, profile: UserProfile): Wo
   }
 }
 
-const WGER_CATEGORY_HE_PREFIX: Record<string, string> = {
-  abs:       'תרגיל בטן',
-  arms:      'תרגיל ידיים',
-  chest:     'תרגיל חזה',
-  back:      'תרגיל גב',
-  legs:      'תרגיל רגליים',
-  glutes:    'תרגיל ישבן',
-  shoulders: 'תרגיל כתפיים',
-  full:      'תרגיל כל הגוף',
-  yoga:      'יוגה',
-  stretch:   'מתיחה',
-}
 
 function hebrewCategoryPrefix(choice: HomeWorkoutCategory): string {
-  return WGER_CATEGORY_HE_PREFIX[choice] ?? 'תרגיל'
+  const map: Record<HomeWorkoutCategory, string> = {
+    abs: 'בטן', arms: 'ידיים', back: 'גב', chest: 'חזה', legs: 'רגליים', goal: '',
+  }
+  return map[choice] ?? ''
 }
 
 function buildHomeWorkoutFromWger(
@@ -375,7 +384,7 @@ function buildHomeWorkoutFromWger(
   const exercises: Exercise[] = wgerExercises.slice(0, count).map((ex, i) => ({
     id: `wger-home-${ex.id}-${i}`,
     name: ex.name,
-    nameHe: `${hePrefix} ${i + 1}`,
+    nameHe: hePrefix ? `(${hePrefix}) ${ex.name}` : ex.name,
     sets,
     reps,
     restSeconds,
@@ -458,30 +467,129 @@ function analyzeGymProgress(progress: WorkoutProgressEntry[], profile: UserProfi
   return { easyCount, hardCount, mode: 'steady', target, workoutsThisWeek }
 }
 
-// Maps sensitive areas to exercise keywords that should be avoided
-const SENSITIVE_AREA_KEYWORDS: Record<SensitiveArea, string[]> = {
-  back:      ['deadlift', 'row', 'back', 'גב', 'דדליפט'],
-  knees:     ['squat', 'lunge', 'leg press', 'knee', 'סקוואט', 'ברך', 'לנג'],
-  shoulders: ['overhead', 'press', 'shoulder', 'כתף', 'לחיצה מעל'],
-  neck:      ['neck', 'shrug', 'צוואר', 'שרגס'],
-  elbows:    ['curl', 'tricep', 'elbow', 'מרפק', 'כפיפה'],
-  hips:      ['hip', 'hip thrust', 'אגן', 'hip hinge'],
-  ankles:    ['calf', 'jump', 'קפיצה', 'עקב'],
+// Maps sensitive areas to exercise ID / name patterns (hyphenated) that should be blocked.
+// Tested against `ex.id` AND `ex.name.toLowerCase().replace(/\s+/g,'-')` — avoids false positives
+// from broad keywords that appear in instruction text (e.g. 'back' in "keep your lower back down").
+const SENSITIVE_AREA_ID_BLOCKS: Record<SensitiveArea, RegExp> = {
+  back:      /romanian-deadlift|single-leg-deadlift|back-extension|good-morning|renegade|inchworm|superman/,
+  knees:     /squat|lunge|leg-press|leg-extension|smith-squat|bulgarian|jump|step-up|wall-sit/,
+  shoulders: /shoulder-press|overhead|arnold-press|pike|face-pull|lateral-raise|front-raise/,
+  neck:      /shrug|neck/,
+  elbows:    /triceps-dip|close-grip|dips|preacher|concentration/,
+  hips:      /hip-thrust|hip-abduction|hip-adduction/,
+  ankles:    /calf|stairs/,
 }
+
+// Mild pain only blocks the most directly stressful exercises, not the whole category
+const MILD_AREA_ID_BLOCKS: Record<SensitiveArea, RegExp> = {
+  back:      /romanian-deadlift|back-extension|good-morning/,
+  knees:     /squat|lunge/,
+  shoulders: /shoulder-press|overhead|arnold-press/,
+  neck:      /shrug|neck/,
+  elbows:    /triceps-dip|dips|preacher/,
+  hips:      /hip-thrust/,
+  ankles:    /calf/,
+}
+
+// Safe substitute exercise names for blocked movements (matched against HOME_EXERCISE_POOL)
+const SAFE_ALTERNATIVES: Record<string, string> = {
+  'squat':          'glute-bridge',
+  'lunge':          'glute-bridge',
+  'leg-extension':  'calf-raises',
+  'deadlift':       'superman',
+  'shoulder-press': 'lateral-raise',
+  'overhead':       'lateral-raise',
+  'hip-thrust':     'glute-bridge',
+  'dips':           'close-grip-push-up',
+}
+
+// Flat pool of all non-gym exercises — used for safe alternative lookup (B4)
+const HOME_EXERCISE_POOL: Exercise[] = mockWorkouts
+  .filter(w => w.category !== 'gym')
+  .flatMap(w => w.exercises)
 
 function filterExercisesForSensitiveAreas(
   exercises: Exercise[],
   sensitiveAreas: SensitiveArea[],
+  painIntensity?: Partial<Record<SensitiveArea, PainIntensity>>,
 ): { filtered: Exercise[]; removedNames: string[] } {
   if (!sensitiveAreas.length) return { filtered: exercises, removedNames: [] }
-  const keywords = sensitiveAreas.flatMap(area => SENSITIVE_AREA_KEYWORDS[area] ?? [])
+
+  // Test ex.id AND hyphenated name — name-based catches mock exercises (id='legs-1', name='Goblet Squat')
+  const isBlocked = (id: string, name: string): boolean => {
+    const normalizedName = name.toLowerCase().replace(/\s+/g, '-')
+    const searchStr = `${id} ${normalizedName}`
+    return sensitiveAreas.some(area => {
+      const intensity = painIntensity?.[area]
+      const blocks = intensity === 'mild' ? MILD_AREA_ID_BLOCKS[area] : SENSITIVE_AREA_ID_BLOCKS[area]
+      return blocks?.test(searchStr) ?? false
+    })
+  }
+
   const filtered: Exercise[] = []
   const removedNames: string[] = []
+
   for (const ex of exercises) {
-    const searchStr = `${ex.name} ${ex.nameHe ?? ''} ${ex.instruction ?? ''}`.toLowerCase()
-    const blocked = keywords.some(kw => searchStr.includes(kw.toLowerCase()))
-    if (blocked) removedNames.push(ex.nameHe ?? ex.name)
-    else filtered.push(ex)
+    if (!isBlocked(ex.id, ex.name)) {
+      filtered.push(ex)
+      continue
+    }
+
+    // B4 — try to substitute with a safe alternative
+    const normalizedName = ex.name.toLowerCase().replace(/\s+/g, '-')
+    const exKey = `${ex.id} ${normalizedName}`
+    let replaced = false
+    for (const [key, altId] of Object.entries(SAFE_ALTERNATIVES)) {
+      if (exKey.includes(key)) {
+        const altSearchName = altId.replace(/-/g, ' ')
+        const alt = HOME_EXERCISE_POOL.find(e =>
+          e.name.toLowerCase().includes(altSearchName) || e.id.includes(altId)
+        )
+        if (alt && !isBlocked(alt.id, alt.name)) {
+          filtered.push({
+            ...alt,
+            id: `${ex.id}-alt`,
+            restSeconds: ex.restSeconds,
+            sets: ex.sets,
+            reps: ex.reps ?? alt.reps,
+          })
+          replaced = true
+          break
+        }
+      }
+    }
+
+    if (!replaced) {
+      removedNames.push(ex.nameHe ?? ex.name)
+    }
+  }
+
+  return { filtered, removedNames }
+}
+
+// Variant that works on GymExerciseTemplate (used in buildGymWorkout — E2)
+function filterGymTemplatesForSensitiveAreas(
+  templates: GymExerciseTemplate[],
+  sensitiveAreas: SensitiveArea[],
+  painIntensity?: Partial<Record<SensitiveArea, PainIntensity>>,
+): { filtered: GymExerciseTemplate[]; removedNames: string[] } {
+  if (!sensitiveAreas.length) return { filtered: templates, removedNames: [] }
+
+  const isTemplateBlocked = (t: GymExerciseTemplate): boolean => {
+    const normalizedName = t.name.toLowerCase().replace(/\s+/g, '-')
+    const searchStr = `${t.id} ${normalizedName}`
+    return sensitiveAreas.some(area => {
+      const intensity = painIntensity?.[area]
+      const blocks = intensity === 'mild' ? MILD_AREA_ID_BLOCKS[area] : SENSITIVE_AREA_ID_BLOCKS[area]
+      return blocks?.test(searchStr) ?? false
+    })
+  }
+
+  const filtered: GymExerciseTemplate[] = []
+  const removedNames: string[] = []
+  for (const t of templates) {
+    if (!isTemplateBlocked(t)) filtered.push(t)
+    else removedNames.push(t.nameHe ?? t.name)
   }
   return { filtered, removedNames }
 }
@@ -872,13 +980,20 @@ function buildGymWorkout({
   profile: UserProfile
   progress: WorkoutProgressEntry[]
   wgerPool?: GymExerciseTemplate[]
-}): Workout {
+}): { workout: Workout; sensitiveRemovedNames: string[] } {
   const progressSummary = analyzeGymProgress(progress, profile)
   const prescription = getGymPrescription(goal, profile.fitnessLevel, progressSummary.mode, duration)
   const repSeconds = prescription.reps * 4   // ~4 sec/rep on machines
   const exerciseCount = calcGymExerciseCount(duration, prescription.sets, repSeconds, prescription.restSeconds)
   const safeFocuses: GymFocus[] = focuses.length > 0 ? focuses : ['full']
-  const templates = selectGymExerciseTemplates(safeFocuses, exerciseCount, wgerPool, apiPool)
+  const allTemplates = selectGymExerciseTemplates(safeFocuses, exerciseCount, wgerPool, apiPool)
+
+  // E2 — filter templates for sensitive areas; fall back if not enough safe templates remain
+  const sensitiveAreas = (profile.health?.sensitiveAreas ?? []) as SensitiveArea[]
+  const { filtered: safeTemplates, removedNames: sensitiveRemovedNames } =
+    filterGymTemplatesForSensitiveAreas(allTemplates, sensitiveAreas, profile.health?.painIntensity)
+  const templates = safeTemplates.length >= 3 ? safeTemplates : allTemplates
+
   const focusNamesHe = getGymFocusNames(safeFocuses, 'he')
   const focusNamesEn = getGymFocusNames(safeFocuses, 'en')
   const goalHe = getGymGoalName(goal, 'he')
@@ -886,7 +1001,7 @@ function buildGymWorkout({
   const progressNoteHe = getGymProgressNote(progressSummary, 'he')
   const progressNoteEn = getGymProgressNote(progressSummary, 'en')
 
-  return {
+  const workout: Workout = {
     id: `gym-custom-${Date.now()}`,
     category: 'gym',
     name: `Gym ${goalEn} - ${focusNamesEn}`,
@@ -914,6 +1029,8 @@ function buildGymWorkout({
       }
     }),
   }
+
+  return { workout, sensitiveRemovedNames: safeTemplates.length >= 3 ? sensitiveRemovedNames : [] }
 }
 
 function getGymBuilderText(language: 'en' | 'he') {
@@ -950,6 +1067,15 @@ function getGymBuilderText(language: 'en' | 'he') {
     title: 'Gym Workout Builder',
     totalTime: 'Total work time',
   }
+}
+
+// E4 — dynamic weight increment based on exercise type
+function suggestWeightIncrease(exerciseName: string, _lastWeight: number): number {
+  const lower = exerciseName.toLowerCase()
+  if (/leg press|squat|deadlift/.test(lower)) return 5
+  if (/bench|chest press|lat pulldown|row/.test(lower)) return 2.5
+  if (/lateral|curl|tricep|shoulder/.test(lower)) return 1.25
+  return 2.5
 }
 
 function scaleTrainingValue(value: number, multiplier: number) {
@@ -1103,6 +1229,7 @@ function GymWorkoutBuilderPanel({
   onGoalChange,
   onStartWorkout,
   onToggleFocus,
+  sensitiveRemovedNames,
 }: {
   generatedWorkout: Workout | null
   gymDuration: GymDuration
@@ -1115,6 +1242,7 @@ function GymWorkoutBuilderPanel({
   onGoalChange: (goal: GymGoal) => void
   onStartWorkout: () => void
   onToggleFocus: (focus: GymFocus) => void
+  sensitiveRemovedNames: string[]
 }) {
   const { isHebrew, language, t } = useI18n()
   const text = getGymBuilderText(language)
@@ -1210,6 +1338,13 @@ function GymWorkoutBuilderPanel({
         </div>
         <p className="exercise-focus-instruction">{isHebrew ? generatedWorkout.summaryHe : generatedWorkout.summary}</p>
         <p className="exercise-focus-instruction">{text.equipment}</p>
+        {sensitiveRemovedNames.length > 0 && (
+          <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid #fbbf24', borderRadius: 10, padding: '8px 12px', marginBottom: 8, fontSize: 13, color: '#fbbf24' }}>
+            {isHebrew
+              ? `⚠️ הוסרו תרגילים שעלולים להעמיס על האזורים הרגישים שלך: ${sensitiveRemovedNames.join(', ')}`
+              : `⚠️ Exercises removed due to your sensitive areas: ${sensitiveRemovedNames.join(', ')}`}
+          </div>
+        )}
         <div className="workout-card-meta">
           <span>{text.totalTime}: {generatedWorkout.durationMinutes} {t('minutes')}</span>
           <span>{generatedWorkout.exercises.length} {t('exercises')}</span>
@@ -1272,6 +1407,7 @@ function SelectWorkout({
   gymFocuses,
   gymGoal,
   gymProgress,
+  gymSensitiveRemovedNames,
   selectedChoice,
   selectedWorkout,
   selectedAerobic,
@@ -1290,6 +1426,7 @@ function SelectWorkout({
   gymFocuses: GymFocus[]
   gymGoal: GymGoal
   gymProgress: GymProgressSummary
+  gymSensitiveRemovedNames: string[]
   selectedChoice: WorkoutChoice
   selectedWorkout: Workout
   selectedAerobic: AerobicWorkout
@@ -1374,6 +1511,7 @@ function SelectWorkout({
           gymGoal={gymGoal}
           gymProgress={gymProgress}
           isApiLoading={apiGymLoading}
+          sensitiveRemovedNames={gymSensitiveRemovedNames}
           onDurationChange={onGymDurationChange}
           onGenerateWorkout={onGenerateGymWorkout}
           onGoalChange={onGymGoalChange}
@@ -1726,6 +1864,7 @@ export default function WorkoutPage() {
   const [gymFocuses, setGymFocuses] = useState<GymFocus[]>(() => getDefaultGymFocuses(profile))
   const [gymDuration, setGymDuration] = useState<GymDuration>(() => getConfiguredGymDuration(profile))
   const [generatedGymWorkout, setGeneratedGymWorkout] = useState<Workout | null>(null)
+  const [gymSensitiveRemovedNames, setGymSensitiveRemovedNames] = useState<string[]>([])
   const [phase, setPhase] = useState<Phase>('select')
   const [countdown, setCountdown] = useState(3)
   const [exIndex, setExIndex] = useState(0)
@@ -1773,7 +1912,7 @@ export default function WorkoutPage() {
   // Always pre-generate a gym workout on mount so the card is immediately available.
   // Auto-switch selected choice based on today's weekly plan entry.
   useEffect(() => {
-    const auto = buildGymWorkout({
+    const { workout: auto } = buildGymWorkout({
       duration: gymDuration,
       focuses: gymFocuses,
       goal: gymGoal,
@@ -1860,14 +1999,22 @@ export default function WorkoutPage() {
       .then(exercises => setWgerHomeCache(prev => ({ ...prev, [selectedChoice]: exercises })))
       .catch(() => {/* silently fall back to mock data */})
     return () => controller.abort()
-  }, [selectedChoice]) // eslint-disable-line react-hooks/exhaustive-deps
+  // wgerHomeCache is intentionally excluded: including it would create an infinite loop
+  // because the effect itself writes to wgerHomeCache via setWgerHomeCache.
+  // The early-return guard `if (!catId || wgerHomeCache[selectedChoice]) return` is the
+  // correct de-duplication mechanism here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChoice])
 
-  const exercises = useMemo(
-    () => selectedChoice === 'gym'
+  const exercises = useMemo(() => {
+    const base = selectedChoice === 'gym'
       ? selectedWorkout.exercises
-      : selectedWorkout.exercises.map(exercise => getAgeAdjustedExercise(exercise, ageGuidance)),
-    [ageGuidance.restBonusSeconds, ageGuidance.workoutMultiplier, selectedChoice, selectedWorkout],
-  )
+      : selectedWorkout.exercises.map(ex => getAgeAdjustedExercise(ex, ageGuidance))
+    // B1 — apply safety filter during the active workout (not just preview)
+    const sensitiveAreas = (profile.health?.sensitiveAreas ?? []) as SensitiveArea[]
+    const { filtered } = filterExercisesForSensitiveAreas(base, sensitiveAreas, profile.health?.painIntensity)
+    return filtered.length >= 3 ? filtered : base
+  }, [ageGuidance.restBonusSeconds, ageGuidance.workoutMultiplier, selectedChoice, selectedWorkout, profile])
   const total = exercises.length
   const currentEx = exercises[exIndex]
 
@@ -1934,7 +2081,7 @@ export default function WorkoutPage() {
   }
 
   const handleGenerateGymWorkout = useCallback(() => {
-    const workout = buildGymWorkout({
+    const { workout, sensitiveRemovedNames } = buildGymWorkout({
       apiPool: apiGymPool,
       duration: gymDuration,
       focuses: gymFocuses,
@@ -1944,6 +2091,7 @@ export default function WorkoutPage() {
       wgerPool: wgerGymPool,
     })
     setGeneratedGymWorkout(workout)
+    setGymSensitiveRemovedNames(sensitiveRemovedNames)
     setSelectedWorkout(workout)
     setSelectedChoice('gym')
     resetWorkoutState()
@@ -2086,6 +2234,7 @@ export default function WorkoutPage() {
         gymFocuses={gymFocuses}
         gymGoal={gymGoal}
         gymProgress={gymProgress}
+        gymSensitiveRemovedNames={gymSensitiveRemovedNames}
         selectedChoice={selectedChoice}
         selectedWorkout={selectedWorkout}
         selectedAerobic={selectedAerobic}
@@ -2169,9 +2318,14 @@ export default function WorkoutPage() {
         {/* Progressive overload hint */}
         {lastWorkoutWeights[currentEx.name] != null && (
           <p style={{ fontSize: 12, color: '#a5b4fc', margin: '2px 0 4px', textAlign: 'center' }}>
-            {isHebrew
-              ? `⬆️ בפעם שעברה הרמת ${lastWorkoutWeights[currentEx.name]} ק"ג — נסה ${Math.round((lastWorkoutWeights[currentEx.name] + 2.5) * 2) / 2}?`
-              : `⬆️ Last time: ${lastWorkoutWeights[currentEx.name]} kg — try ${Math.round((lastWorkoutWeights[currentEx.name] + 2.5) * 2) / 2}?`}
+            {(() => {
+              const last = lastWorkoutWeights[currentEx.name]
+              const inc = suggestWeightIncrease(currentEx.name, last)
+              const suggested = Math.round((last + inc) * 4) / 4
+              return isHebrew
+                ? `⬆️ בפעם שעברה הרמת ${last} ק"ג — נסה ${suggested}?`
+                : `⬆️ Last time: ${last} kg — try ${suggested}?`
+            })()}
           </p>
         )}
         <p className="exercise-focus-sets">
