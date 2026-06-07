@@ -1,3 +1,6 @@
+// LEGACY: This file is no longer used by the React app.
+// It was the pre-React vanilla-JS implementation of AI tools.
+// Kept for reference only — do not import or extend.
 import { getHybridAiReply, handleFallback, sanitizeUserMessage } from './lib/aiClient'
 
 const AI_TOOLS_SELECTOR = '#sf-ai-tools-area'

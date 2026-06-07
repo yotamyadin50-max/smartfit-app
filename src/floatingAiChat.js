@@ -1,3 +1,6 @@
+// LEGACY: This file is no longer used by the React app.
+// It was the pre-React vanilla-JS floating chat widget.
+// Kept for reference only — do not import or extend.
 import { getHybridAiReply, handleFallback, sanitizeUserMessage } from './lib/aiClient'
 
 const chatRoot = document.getElementById('sf-floating-ai-chat')
