@@ -114,7 +114,7 @@ function scheduleAutoReconnect() {
       await reconnectBLEHeartRate()
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      console.log('Ascend AI watch auto reconnect failed', {
+      console.warn('Ascend AI watch auto reconnect failed', {
         attempt: _autoReconnectAttempts,
         message,
       })

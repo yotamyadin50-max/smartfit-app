@@ -255,7 +255,7 @@ export default function WearablePage() {
       persist({ ...wState, savedDevices: [...without, { id: 'watch', name, connectedAt: now }] })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.log('Ascend AI watch reconnect failed', { message: msg })
+      console.warn('Ascend AI watch reconnect failed', { message: msg })
       if (showError) {
         setBleError(T(
           'Could not reconnect automatically. Choose the watch again and Ascend AI will remember it.',

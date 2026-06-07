@@ -46,7 +46,7 @@ export function ExerciseAnimation({
       })
       .catch(error => {
         if (!isMountedRef.current) return
-        console.log('[ExerciseDB] animation lookup failed', {
+        if (import.meta.env.DEV) console.log('[ExerciseDB] animation lookup failed', {
           exerciseName,
           message: error instanceof Error ? error.message : String(error),
         })
