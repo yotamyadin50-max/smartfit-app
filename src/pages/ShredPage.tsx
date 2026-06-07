@@ -570,8 +570,9 @@ export default function ShredPage() {
       setAiSuggestion(reply.text)
     } catch {
       setAiSuggestion(t('Could not reach AI right now.', 'לא הצלחתי להתחבר לAI כרגע.'))
+    } finally {
+      setAiLoading(false)
     }
-    setAiLoading(false)
   }
 
   const card = {

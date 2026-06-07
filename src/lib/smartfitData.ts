@@ -245,8 +245,14 @@ export function getCachedAiReply(cacheKey: string): CachedAiReply | null {
     .filter(item => now - new Date(item.createdAt).getTime() <= AI_CACHE_TTL_MS)
 
   const match = cache.find(item => item.cacheKey === cacheKey)
-  if (cache.length) writeJson(AI_CACHE_KEY, cache.slice(0, MAX_CACHE_ITEMS))
+  writeJson(AI_CACHE_KEY, cache.slice(0, MAX_CACHE_ITEMS))
   return match ?? null
+}
+
+export function removeCachedReply(cacheKey: string) {
+  const cache = readJson<CachedAiReply[]>(AI_CACHE_KEY, [], isCachedAiReplies)
+    .filter(item => item.cacheKey !== cacheKey)
+  writeJson(AI_CACHE_KEY, cache)
 }
 
 export function setCachedAiReply(reply: CachedAiReply) {
