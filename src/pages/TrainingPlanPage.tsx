@@ -1,5 +1,5 @@
 import PageHeader from '../components/layout/PageHeader'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '../context/I18nContext'
 import {
   WEEK_DAYS,
@@ -198,8 +198,14 @@ export default function TrainingPlanPage() {
     if (cleanedGymDays.length !== gymDays.length) setGymDays(cleanedGymDays)
     updateProfile({ gymDays: cleanedGymDays })
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }
+
+  // Clear the "saved" flash after 2 s — cleanup prevents state update on unmounted component
+  useEffect(() => {
+    if (!saved) return
+    const t = setTimeout(() => setSaved(false), 2000)
+    return () => clearTimeout(t)
+  }, [saved])
 
   return (
     <div className="app-layout">

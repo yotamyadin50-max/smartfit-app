@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../context/I18nContext'
 import { getExerciseAnimationMatch, type ExerciseAnimationMatch } from '../services/exerciseAnimationService'
 
@@ -22,6 +22,7 @@ export function ExerciseAnimation({
   const [match, setMatch] = useState<ExerciseAnimationMatch | null>(null)
   const [status, setStatus] = useState<AnimationStatus>(() => gifUrl ? 'ready' : 'loading')
   const [imageLoaded, setImageLoaded] = useState(false)
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
     // If a direct GIF URL is provided, skip the lookup entirely
@@ -32,20 +33,19 @@ export function ExerciseAnimation({
       return
     }
 
-    let isMounted = true
-
+    isMountedRef.current = true
     setStatus('loading')
     setMatch(null)
     setImageLoaded(false)
 
     getExerciseAnimationMatch(exerciseName)
       .then(result => {
-        if (!isMounted) return
+        if (!isMountedRef.current) return
         setMatch(result)
         setStatus(result ? 'ready' : 'empty')
       })
       .catch(error => {
-        if (!isMounted) return
+        if (!isMountedRef.current) return
         console.log('[ExerciseDB] animation lookup failed', {
           exerciseName,
           message: error instanceof Error ? error.message : String(error),
@@ -54,7 +54,7 @@ export function ExerciseAnimation({
       })
 
     return () => {
-      isMounted = false
+      isMountedRef.current = false
     }
   }, [exerciseName, gifUrl])
 

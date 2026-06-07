@@ -8,6 +8,7 @@ import { syncKnownAppAccess } from './lib/appAccess'
 import { checkInactivityReminder, syncScheduledReminders } from './lib/remindersService'
 
 import AnimatedWaveBackground from './components/AnimatedWaveBackground'
+import ErrorBoundary from './components/ErrorBoundary'
 import AchievementToast from './components/AchievementToast'
 
 const LandingPage = lazy(() => import('./pages/LandingPage'))
@@ -86,12 +87,14 @@ function InviteHandler() {
     const pending = getPendingInvite()
     if (!pending) return
     clearPendingInvite()
-    acceptInvite(pending, user.id).then(result => {
-      if (result === 'ok') {
-        addXP(50) // +50 XP for new friend
-        console.log('[Friends] Friendship created +50 XP')
-      }
-    })
+    acceptInvite(pending, user.id)
+      .then(result => {
+        if (result === 'ok') {
+          addXP(50) // +50 XP for new friend
+          console.log('[Friends] Friendship created +50 XP')
+        }
+      })
+      .catch(err => console.warn('[Friends] acceptInvite failed', err))
   }, [user, addXP])
 
   return null
@@ -109,13 +112,15 @@ function DashboardResetGuard() {
     if (!user || !cloudSynced || !profile.onboardingComplete) return
 
     const handleResume = () => {
-      const raw = localStorage.getItem(INACTIVE_KEY)
-      if (!raw) return
-      const elapsed = Date.now() - parseInt(raw, 10)
-      if (elapsed >= RESET_THRESHOLD_MS && !window.location.pathname.startsWith('/workout')) navigate('/dashboard', { replace: true })
+      try {
+        const raw = localStorage.getItem(INACTIVE_KEY)
+        if (!raw) return
+        const elapsed = Date.now() - parseInt(raw, 10)
+        if (elapsed >= RESET_THRESHOLD_MS && !window.location.pathname.startsWith('/workout')) navigate('/dashboard', { replace: true })
+      } catch { /* localStorage blocked */ }
     }
 
-    const handleHide = () => localStorage.setItem(INACTIVE_KEY, Date.now().toString())
+    const handleHide = () => { try { localStorage.setItem(INACTIVE_KEY, Date.now().toString()) } catch {} }
 
     // Web: visibilitychange
     const onVisibility = () => {
@@ -181,6 +186,7 @@ export default function App() {
       <DashboardResetGuard />
       <AnimatedWaveBackground />
       <AchievementToast />
+      <ErrorBoundary>
       <Suspense fallback={<div className="spinner-screen">{t('loading')}</div>}>
         <Routes>
           <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
@@ -209,6 +215,7 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }

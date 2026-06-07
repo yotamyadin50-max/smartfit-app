@@ -162,7 +162,7 @@ export default function AchievementToast() {
     function checkAchievements() {
       const events = getCurrentEvents(stats, profile)
       const currentIds = new Set(events.map(event => event.id))
-      const hasBaseline = localStorage.getItem(SEEN_KEY) !== null
+      const hasBaseline = (() => { try { return localStorage.getItem(SEEN_KEY) !== null } catch { return false } })()
       const seen = readSeenIds()
 
       if (!hasBaseline) {

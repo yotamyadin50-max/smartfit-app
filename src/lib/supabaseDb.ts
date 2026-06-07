@@ -45,7 +45,7 @@ export async function saveProfileToSupabase(userId: string, profile: UserProfile
   if (error) {
     console.warn(TAG, '❌ save profile failed', error.message)
   } else {
-    console.log(TAG, '✅ profile saved', { userId, name: profile.name, goal: profile.goal })
+    if (import.meta.env.DEV) console.log(TAG, '✅ profile saved', { userId, name: profile.name, goal: profile.goal })
   }
 }
 
@@ -67,11 +67,11 @@ export async function loadProfileFromSupabase(userId: string): Promise<UserProfi
     return null
   }
   if (!data?.profile) {
-    console.log(TAG, 'ℹ️ no profile in cloud yet (new user)')
+    if (import.meta.env.DEV) console.log(TAG, 'ℹ️ no profile in cloud yet (new user)')
     return null
   }
 
-  console.log(TAG, '✅ profile loaded from cloud', { userId })
+  if (import.meta.env.DEV) console.log(TAG, '✅ profile loaded from cloud', { userId })
   return data.profile as UserProfile
 }
 
@@ -94,7 +94,7 @@ export async function saveStatsToSupabase(userId: string, stats: UserStats): Pro
   if (error) {
     console.warn(TAG, '❌ save stats failed', error.message)
   } else {
-    console.log(TAG, '✅ stats saved', { userId, xp: stats.xp, level: stats.level, streak: stats.streak })
+    if (import.meta.env.DEV) console.log(TAG, '✅ stats saved', { userId, xp: stats.xp, level: stats.level, streak: stats.streak })
   }
 }
 
@@ -119,7 +119,7 @@ export async function loadStatsFromSupabase(userId: string): Promise<UserStats |
   }
 
   const s = data.stats as UserStats
-  console.log(TAG, '✅ stats loaded from cloud', { xp: s.xp, level: s.level, streak: s.streak })
+  if (import.meta.env.DEV) console.log(TAG, '✅ stats loaded from cloud', { xp: s.xp, level: s.level, streak: s.streak })
   return s
 }
 
@@ -154,7 +154,7 @@ export async function saveProgressEntryToSupabase(
   if (error) {
     console.warn(TAG, '❌ save progress failed', error.message)
   } else {
-    console.log(TAG, '✅ progress entry saved', { userId, type: entry.type, duration: entry.duration, date: entry.date })
+    if (import.meta.env.DEV) console.log(TAG, '✅ progress entry saved', { userId, type: entry.type, duration: entry.duration, date: entry.date })
   }
 }
 

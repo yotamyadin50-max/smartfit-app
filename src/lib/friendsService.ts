@@ -51,7 +51,7 @@ export function getPendingInvite(): string | null {
 }
 
 export function clearPendingInvite() {
-  localStorage.removeItem(PENDING_INVITE_KEY)
+  try { localStorage.removeItem(PENDING_INVITE_KEY) } catch {}
 }
 
 // ── Invite links ─────────────────────────────────────────────────────────────

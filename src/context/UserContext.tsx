@@ -566,7 +566,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         workoutType,
         weeklyPlan: updates.weeklyPlan ? ensureRestDays(updates.weeklyPlan) : prev.weeklyPlan,
       }
-      getCurrentUserId().then(uid => { if (uid) saveProfileToSupabase(uid, next) })
+      getCurrentUserId().then(uid => { if (uid) saveProfileToSupabase(uid, next) }).catch(err => console.warn('[UserContext] Supabase sync failed', err))
       return next
     })
   , [setProfile])
@@ -587,7 +587,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         streakFreezes: newFreezes,
         totalWorkouts: prev.totalWorkouts,
       }
-      getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
+      getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) }).catch(err => console.warn('[UserContext] Supabase sync failed', err))
       emitProgressEvent()
       return next
     })
@@ -604,7 +604,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         totalWorkouts: alreadyToday ? prev.totalWorkouts : prev.totalWorkouts + 1,
         lastWorkoutDate: today,
       }
-      getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) })
+      getCurrentUserId().then(uid => { if (uid) saveStatsToSupabase(uid, next) }).catch(err => console.warn('[UserContext] Supabase sync failed', err))
       emitProgressEvent()
       return next
     })
@@ -639,7 +639,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         weeklyPlan: profileData.weeklyPlan ? ensureRestDays(profileData.weeklyPlan) : prev.weeklyPlan ?? DEFAULT_WEEKLY_PLAN,
         onboardingComplete: true,
       }
-      getCurrentUserId().then(uid => { if (uid) saveProfileToSupabase(uid, next) })
+      getCurrentUserId().then(uid => { if (uid) saveProfileToSupabase(uid, next) }).catch(err => console.warn('[UserContext] Supabase sync failed', err))
       return next
     })
   }, [setProfile])

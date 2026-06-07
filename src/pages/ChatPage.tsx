@@ -128,7 +128,10 @@ export default function ChatPage() {
       }))
       setMessages(storedMessages.map(toUiMessage))
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // isSupabaseConfigured is a module-level constant (never changes);
+  // setMessages is stable from useState — both are safe to omit from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => () => {
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
@@ -233,6 +236,7 @@ export default function ChatPage() {
     // Save user message to Supabase (fire-and-forget)
     if (isSupabaseConfigured) {
       supabase.auth.getUser().then(({ data }) => {
+        if (cancelledRequestIdsRef.current.has(requestId)) return
         if (data.user) saveChatMessageToSupabase(data.user.id, {
           id: userMsg.id,
           role: 'user',
@@ -301,6 +305,7 @@ export default function ChatPage() {
       // Save AI reply to Supabase (fire-and-forget)
       if (isSupabaseConfigured) {
         supabase.auth.getUser().then(({ data }) => {
+          if (cancelledRequestIdsRef.current.has(requestId)) return
           if (data.user) saveChatMessageToSupabase(data.user.id, {
             id: reply.id,
             role: 'assistant',

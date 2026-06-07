@@ -38,8 +38,10 @@ function getCachedUser(): User | null {
 }
 
 function setCachedUser(user: User | null) {
-  if (user) localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user))
-  else localStorage.removeItem(CACHED_USER_KEY)
+  try {
+    if (user) localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user))
+    else localStorage.removeItem(CACHED_USER_KEY)
+  } catch { /* localStorage blocked */ }
 }
 
 // ── Mock fallback (used when Supabase is not configured) ──────────────────────

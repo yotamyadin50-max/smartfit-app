@@ -174,7 +174,7 @@ function createAbortController(prompt: string, signal?: AbortSignal) {
   }
   let timeoutMs = getInitialTimeoutMs(prompt)
   const timeoutAbort = () => {
-    console.log('request timeout', { timeoutMs })
+    if (import.meta.env.DEV) console.log('request timeout', { timeoutMs })
     abortSafely(new DOMException('timeout', 'AbortError'))
   }
   let timeout = window.setTimeout(timeoutAbort, timeoutMs)
@@ -352,7 +352,7 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
     const { controller, dispose } = createAbortController(cleanPrompt, signal)
 
     try {
-      console.log('request started', { attempt: attempt + 1 })
+      if (import.meta.env.DEV) console.log('request started', { attempt: attempt + 1 })
       const response = await fetch(AI_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -384,8 +384,8 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
         })
       }
 
-      console.log('request completed', { attempt: attempt + 1, status: response.status })
-      console.log('AI reply text:', replyText)
+      if (import.meta.env.DEV) console.log('request completed', { attempt: attempt + 1, status: response.status })
+      if (import.meta.env.DEV) console.log('AI reply text:', replyText)
       const isLocalMode = data.mode === 'local' || data.model === 'local-mode'
       return {
         mode: isLocalMode ? 'local' : 'openrouter',
@@ -407,7 +407,7 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
         (abortReason === 'new-message' || abortReason === 'cancelled')
 
       if (isAbortError(error)) {
-        console.log('request aborted', { attempt: attempt + 1, reason: abortReason || 'unknown' })
+        if (import.meta.env.DEV) console.log('request aborted', { attempt: attempt + 1, reason: abortReason || 'unknown' })
       }
 
       if (!isUserCancellation) {
@@ -421,7 +421,7 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
         throw error
       }
 
-      console.log('retrying request', { nextAttempt: attempt + 2 })
+      if (import.meta.env.DEV) console.log('retrying request', { nextAttempt: attempt + 2 })
       await wait(450)
     } finally {
       dispose()
@@ -448,7 +448,7 @@ export function handleFallback(request: Pick<HybridAiRequest, 'language' | 'prof
       }
     }
   } catch (error) {
-    console.log('Ascend AI local fallback failed', error)
+    if (import.meta.env.DEV) console.log('FITNESS AI local fallback failed', error)
   }
 
   return {

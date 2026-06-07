@@ -508,10 +508,12 @@ export default function SocialPage() {
 
   const handleCopy = () => {
     if (!inviteLink) return
-    navigator.clipboard.writeText(inviteLink).then(() => {
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1800)
-    })
+    navigator.clipboard.writeText(inviteLink)
+      .then(() => {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1800)
+      })
+      .catch(() => { /* clipboard unavailable */ })
   }
 
   const handleOpenNotifications = useCallback(async () => {

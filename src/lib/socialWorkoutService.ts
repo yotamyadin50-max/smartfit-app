@@ -307,7 +307,7 @@ export async function loadWorkoutFeed(_userId: string): Promise<WorkoutPost[]> {
       }))
       .filter(post => canUserSeePost(post, _userId))
   } catch (error) {
-    console.log('[SocialWorkout] feed fallback to local mode', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] feed fallback to local mode', error)
     return localPosts
   }
 }
@@ -356,7 +356,7 @@ export async function createWorkoutPost(input: CreateWorkoutPostInput): Promise<
     if (participantError) throw participantError
     return { ...created, participants: localPost.participants }
   } catch (error) {
-    console.log('[SocialWorkout] create post fallback to local mode', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] create post fallback to local mode', error)
     writeLocalPosts([localPost, ...getLocalPosts()])
     return localPost
   }
@@ -381,7 +381,7 @@ export async function joinWorkoutPost(postId: string, userId: string, userName: 
       user_id: userId,
     }, { onConflict: 'post_id,user_id' })
   } catch (error) {
-    console.log('[SocialWorkout] join stored locally', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] join stored locally', error)
   }
 }
 
@@ -412,7 +412,7 @@ export async function reactToWorkoutPost(postId: string, userId: string, type: W
       await supabase.from('workout_post_reactions').insert({ post_id: postId, type, user_id: userId })
     }
   } catch (error) {
-    console.log('[SocialWorkout] reaction stored locally', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] reaction stored locally', error)
   }
 }
 
@@ -449,7 +449,7 @@ export async function commentOnWorkoutPost(postId: string, userId: string, userN
       user_name: String(data.user_name ?? userName),
     }
   } catch (error) {
-    console.log('[SocialWorkout] comment stored locally', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] comment stored locally', error)
     return comment
   }
 }
@@ -520,7 +520,7 @@ export async function createJointWorkoutSession(input: {
     })))
     return created
   } catch (error) {
-    console.log('[SocialWorkout] joint session fallback to local mode', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] joint session fallback to local mode', error)
     writeLocalSessions([session, ...getLocalSessions()])
     return session
   }
@@ -537,7 +537,7 @@ export async function startJointWorkoutSession(sessionId: string): Promise<void>
   try {
     await supabase.from('joint_workout_sessions').update({ started_at: startedAt, status: 'live' }).eq('id', sessionId)
   } catch (error) {
-    console.log('[SocialWorkout] start session stored locally', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] start session stored locally', error)
   }
 }
 
@@ -557,7 +557,7 @@ export async function setJointParticipantPresent(sessionId: string, userId: stri
       .eq('session_id', sessionId)
       .eq('user_id', userId)
   } catch (error) {
-    console.log('[SocialWorkout] presence stored locally', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] presence stored locally', error)
   }
 }
 
@@ -599,7 +599,7 @@ export async function completeJointWorkoutSession(session: JointWorkoutSession):
     })
 
     if (!rpcError) return rewards
-    console.log('[SocialWorkout] reward RPC unavailable, using client fallback', rpcError)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] reward RPC unavailable, using client fallback', rpcError)
 
     await supabase.from('joint_workout_sessions').update({ ended_at: endedAt, status: 'completed' }).eq('id', session.id)
     await supabase.from('joint_workout_session_participants').upsert(completedParticipants.map(participant => ({
@@ -612,7 +612,7 @@ export async function completeJointWorkoutSession(session: JointWorkoutSession):
     })), { onConflict: 'session_id,user_id' })
     await supabase.from('joint_workout_rewards').upsert(rewards, { onConflict: 'session_id,user_id' })
   } catch (error) {
-    console.log('[SocialWorkout] rewards stored locally', error)
+    if (import.meta.env.DEV) console.log('[SocialWorkout] rewards stored locally', error)
   }
   return rewards
 }
