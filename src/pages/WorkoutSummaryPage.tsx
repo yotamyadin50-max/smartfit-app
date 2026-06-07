@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../context/I18nContext'
@@ -38,6 +38,9 @@ export default function WorkoutSummaryPage() {
   const [submitted, setSubmitted] = useState(false)
   const [bonusAwarded, setBonusAwarded] = useState(false)
   const [earnedXP, setEarnedXP] = useState(120)
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => { if (navTimerRef.current) window.clearTimeout(navTimerRef.current) }, [])
 
   useEffect(() => {
     const completionId = routeState?.completionId ?? 'direct-summary'
@@ -81,7 +84,8 @@ export default function WorkoutSummaryPage() {
       localStorage.removeItem('smartfit_pain_last_workout')
     }
     setSubmitted(true)
-    window.setTimeout(() => navigate('/dashboard'), 1200)
+    if (navTimerRef.current) window.clearTimeout(navTimerRef.current)
+    navTimerRef.current = window.setTimeout(() => navigate('/dashboard'), 1200)
   }
 
   const handleShareWorkout = () => {

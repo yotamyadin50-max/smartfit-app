@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import PageHeader from '../components/layout/PageHeader'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useI18n } from '../context/I18nContext'
 import { getAgeGuidance, getProfileGoals, useUser } from '../context/UserContext'
 import { type MealOption, type MealCategory, type Macros } from '../data/mockNutrition'
@@ -271,6 +271,7 @@ function WeeklyMealPlanSection() {
   const { language } = useI18n()
   const { profile } = useUser()
   const [loading, setLoading] = useState(false)
+  const genTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [plan, setPlan] = useLocalStorage<WeeklyNutritionPlan | null>(
     'smartfit_weekly_nutrition_plan',
     null,
@@ -279,7 +280,8 @@ function WeeklyMealPlanSection() {
 
   const handleGenerate = () => {
     setLoading(true)
-    window.setTimeout(() => {
+    if (genTimerRef.current) window.clearTimeout(genTimerRef.current)
+    genTimerRef.current = window.setTimeout(() => {
       const nextPlan = generateWeeklyNutritionPlan(profile, language)
       setPlan(nextPlan)
       saveWeeklyMealPlan(nextPlan)

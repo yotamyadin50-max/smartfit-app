@@ -1,5 +1,5 @@
 import PageHeader from '../components/layout/PageHeader'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useI18n, type Language } from '../context/I18nContext'
@@ -101,6 +101,7 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(profile.notificationsEnabled)
   const [reminderTime, setReminderTime] = useState(profile.reminderTime)
   const [saved, setSaved] = useState(false)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editingPlan, setEditingPlan] = useState(false)
   const [notifPermission, setNotifPermission] = useState(getPermissionState)
 
@@ -180,7 +181,8 @@ export default function SettingsPage() {
       reminderTime,
     })
     setSaved(true)
-    window.setTimeout(() => setSaved(false), 2000)
+    if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current)
+    savedTimerRef.current = window.setTimeout(() => setSaved(false), 2000)
   }
 
   const clearAccountLocalData = () => {
