@@ -53,6 +53,8 @@ const focusLabelKeys: Record<ScheduleFocus, string> = {
   back: 'backWorkout',
   aerobic: 'aerobicWorkout',
   rest: 'restDay',
+  chest: 'chestWorkout',
+  glutes: 'glutesWorkout',
 }
 
 const SENSITIVE_LOCAL_KEYS = [

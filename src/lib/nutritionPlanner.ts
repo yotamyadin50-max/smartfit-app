@@ -194,12 +194,15 @@ function getMealPool(profile: Partial<UserProfile>, language: PlanLanguage) {
   return hardWithTime ? [...data.quickMeals, ...base] : base
 }
 
-function adaptMeal(rawMeal: MealTemplate, blocked: string[], likedFoods: string[]): WeeklyMeal {
+function adaptMeal(rawMeal: MealTemplate, blocked: string[], likedFoods: string[], language: PlanLanguage = 'he'): WeeklyMeal {
   const [name, ingredientsValue, description, goalFit] = rawMeal
   let ingredients = ingredientsValue.filter(ingredient => !includesForbidden([ingredient], blocked))
 
   if (ingredients.length < 2) {
-    ingredients = ['אורז', 'ירקות', 'חומוס'].filter(ingredient => !includesForbidden([ingredient], blocked))
+    const fallback = language === 'en'
+      ? ['rice', 'vegetables', 'hummus']
+      : ['אורז', 'ירקות', 'חומוס']
+    ingredients = fallback.filter(ingredient => !includesForbidden([ingredient], blocked))
   }
 
   const likedAddition = likedFoods.find(food => !includesForbidden([food], blocked) && !ingredients.some(ingredient => ingredient.toLowerCase() === food))
@@ -222,7 +225,7 @@ function buildDay(profile: Partial<UserProfile>, day: string, dayIndex: number, 
   const pool = getMealPool(profile, language).filter(meal => !includesForbidden(meal[1] as string[], blocked))
   const safePool = pool.length ? pool : data.balancedMeals
   const meals = data.slotNames.map((slot, slotIndex) => ({
-    ...adaptMeal(safePool[(dayIndex + slotIndex) % safePool.length], blocked, likedFoods),
+    ...adaptMeal(safePool[(dayIndex + slotIndex) % safePool.length], blocked, likedFoods, language),
     slot,
   }))
 

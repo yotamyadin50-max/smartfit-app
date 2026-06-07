@@ -128,13 +128,13 @@ function parseExercise(raw: Record<string, unknown>): WgerExercise | null {
 }
 
 // Fetch exercises from multiple categories, deduped — used by workout builder
-export async function fetchWgerPool(categoryIds: number[]): Promise<WgerExercise[]> {
+export async function fetchWgerPool(categoryIds: number[], signal?: AbortSignal): Promise<WgerExercise[]> {
   const seen = new Set<number>()
   const all: WgerExercise[] = []
   const unique = [...new Set(categoryIds)]
   for (const catId of unique) {
     try {
-      const { exercises } = await fetchWgerExercises(catId, 0)
+      const { exercises } = await fetchWgerExercises(catId, 0, signal)
       for (const ex of exercises) {
         if (!seen.has(ex.id)) {
           seen.add(ex.id)
@@ -150,7 +150,8 @@ export async function fetchWgerPool(categoryIds: number[]): Promise<WgerExercise
 
 export async function fetchWgerExercises(
   categoryId: number,
-  offset = 0
+  offset = 0,
+  signal?: AbortSignal,
 ): Promise<{ exercises: WgerExercise[]; hasMore: boolean; total: number }> {
   const key = cacheKey(categoryId, offset)
   const cached = readCache(key)
@@ -159,7 +160,7 @@ export async function fetchWgerExercises(
   }
 
   const url = `https://wger.de/api/v2/exerciseinfo/?format=json&language=2&limit=20&category=${categoryId}&offset=${offset}`
-  const res = await fetch(url)
+  const res = await fetch(url, { signal })
   if (!res.ok) throw new Error(`wger API ${res.status}`)
 
   const json = await res.json() as { count: number; next: string | null; results: Record<string, unknown>[] }

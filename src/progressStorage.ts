@@ -22,6 +22,7 @@ export type WorkoutProgressEntry = {
   id: string
   notes?: string
   pain?: string
+  setFeedback?: { exerciseId: string; setIndex: number; feeling: string }[]
   type: string
 }
 

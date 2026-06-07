@@ -430,10 +430,16 @@ export default function NutritionPage() {
     Array.isArray(value) && value.every(item => typeof item === 'string'),
   )
 
-  // Build meal categories from a profile-aware generated plan (no mock data)
+  // Build meal categories — use saved plan from localStorage first, generate only as fallback
   const mealCategories = useMemo(() => {
-    const plan = generateWeeklyNutritionPlan(profile, language === 'he' ? 'he' : 'en')
-    return buildMealCategoriesFromPlan(plan)
+    try {
+      const raw = localStorage.getItem('smartfit_weekly_nutrition_plan')
+      const stored = raw ? (JSON.parse(raw) as WeeklyNutritionPlan | null) : null
+      const savedPlan = (stored && isWeeklyNutritionPlan(stored)) ? stored : generateWeeklyNutritionPlan(profile, language === 'he' ? 'he' : 'en')
+      return buildMealCategoriesFromPlan(savedPlan)
+    } catch {
+      return buildMealCategoriesFromPlan(generateWeeklyNutritionPlan(profile, language === 'he' ? 'he' : 'en'))
+    }
   }, [profile, language])
 
   if (hasCuttingGoal) return <Navigate to="/shredding" replace />

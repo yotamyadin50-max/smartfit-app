@@ -38,6 +38,8 @@ const focusLabelKeys: Record<ScheduleFocus, string> = {
   back: 'backWorkout',
   aerobic: 'aerobicWorkout',
   rest: 'restDay',
+  chest: 'chestWorkout',
+  glutes: 'glutesWorkout',
 }
 
 const goalLabelKeys: Record<Goal, string> = {
@@ -58,10 +60,10 @@ const locationLabelKeys: Record<WorkoutType, string> = {
 
 const goalFocusOrder: Record<Goal, ScheduleFocus[]> = {
   cut: ['aerobic', 'legs', 'abs', 'goal'],
-  bulk: ['goal', 'back', 'legs', 'arms', 'abs'],
+  bulk: ['goal', 'chest', 'back', 'legs', 'arms', 'abs'],
   endurance: ['aerobic', 'legs', 'goal', 'abs'],
   flexibility: ['abs', 'goal', 'aerobic', 'legs'],
-  fitness: ['goal', 'back', 'aerobic', 'legs', 'arms', 'abs'],
+  fitness: ['goal', 'chest', 'back', 'aerobic', 'legs', 'arms', 'abs'],
   health: ['aerobic', 'goal', 'abs', 'legs'],
   consistency: ['goal', 'aerobic', 'abs', 'legs'],
 }
@@ -83,19 +85,37 @@ function getMockAiFocusQueue(goals: Goal[], fitnessLevel: FitnessLevel): Schedul
   return safeQueue
 }
 
+const LEG_FOCUSES = new Set<ScheduleFocus>(['legs', 'glutes'])
+
 function buildMockAiPlan(restDays: WeekDay[], goals: Goal[], fitnessLevel: FitnessLevel): WeeklyPlan {
   const restSet = new Set(restDays)
   const focusQueue = getMockAiFocusQueue(goals, fitnessLevel)
   const plan = {} as WeeklyPlan
   let focusIndex = 0
 
-  WEEK_DAYS.forEach(day => {
+  WEEK_DAYS.forEach((day, dayIdx) => {
     if (restSet.has(day)) {
       plan[day] = 'rest'
       return
     }
 
-    plan[day] = focusQueue[focusIndex % focusQueue.length]
+    let candidate = focusQueue[focusIndex % focusQueue.length]
+
+    // Prevent consecutive leg days
+    if (dayIdx > 0 && LEG_FOCUSES.has(candidate)) {
+      const prevDay = WEEK_DAYS[dayIdx - 1]
+      if (plan[prevDay] && LEG_FOCUSES.has(plan[prevDay] as ScheduleFocus)) {
+        // Find next non-leg focus in the queue
+        let tries = 0
+        while (LEG_FOCUSES.has(candidate) && tries < focusQueue.length) {
+          focusIndex += 1
+          tries += 1
+          candidate = focusQueue[focusIndex % focusQueue.length]
+        }
+      }
+    }
+
+    plan[day] = candidate
     focusIndex += 1
   })
 
@@ -162,15 +182,21 @@ export default function TrainingPlanPage() {
 
   const handleGenerate = () => {
     if (!canGenerate) return
+    // Validate: remove any gym days that are now rest days
+    const cleanedGymDays = gymDays.filter(d => !selectedRestDays.includes(d))
+    if (cleanedGymDays.length !== gymDays.length) setGymDays(cleanedGymDays)
     const nextPlan = buildMockAiPlan(selectedRestDays, goals, profile.fitnessLevel)
     setDraftPlan(nextPlan)
-    updateProfile({ weeklyPlan: nextPlan, gymDays })
+    updateProfile({ weeklyPlan: nextPlan, gymDays: cleanedGymDays })
     setSaved(true)
     setPlanVisible(true)
   }
 
   const handleSaveGymDays = () => {
-    updateProfile({ gymDays })
+    // Validate: remove any gym days that conflict with rest days
+    const cleanedGymDays = gymDays.filter(d => !selectedRestDays.includes(d))
+    if (cleanedGymDays.length !== gymDays.length) setGymDays(cleanedGymDays)
+    updateProfile({ gymDays: cleanedGymDays })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

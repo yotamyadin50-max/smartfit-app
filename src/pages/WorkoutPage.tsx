@@ -12,7 +12,7 @@ import {
 } from '../lib/wgerService'
 import { GYM_EXERCISES_FALLBACK, type GymFocus, type GymExerciseTemplate } from '../data/gymExercises'
 import { getExercisesForCategory, type PoolExercise, type ExerciseCategory } from '../lib/exercisePool'
-import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type ScheduleFocus, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
+import { getAgeGuidance, getProfileGoals, getProfileWeeklyPlan, getProfileWorkoutTypes, WEEK_DAYS, type Goal, type ScheduleFocus, type SensitiveArea, type UserProfile, useUser, type WorkoutType } from '../context/UserContext'
 import {
   mockAerobicWorkouts,
   mockWorkouts,
@@ -24,7 +24,7 @@ import {
 } from '../data/mockWorkouts'
 import { getHeartRateSummary } from '../deviceConnections'
 import { sendNotification } from '../lib/notifications'
-import { estimateCardioCalories, getCardioActivityType } from '../fitnessTracking'
+import { estimateCardioCalories, formatPace, getCardioActivityType } from '../fitnessTracking'
 import { startLocationTracker, type LocationTrackerStatus } from '../locationTracker'
 import { getLastWorkoutWeights, getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
 import { getCurrentHR, getHRZone, HR_ZONE_COLOR, HR_ZONE_LABEL, onHeartRate } from '../lib/heartRate'
@@ -108,6 +108,22 @@ const DUMBBELL_ALTERNATIVES: Record<string, { name: string; nameHe: string; inst
   'cable-crunch':          { name: 'Dumbbell Crunch', nameHe: 'כפיפת בטן עם משקולת', instruction: 'Lie on your back, hold a light dumbbell at the chest, and crunch the ribs toward the pelvis.', instructionHe: 'שכב על הגב, החזק משקולת קלה בחזה וכפוף צלעות לכיוון האגן.' },
   'hanging-knee-raise':    { name: 'Floor Lying Leg Raise', nameHe: 'הרמת רגליים שכיבה', instruction: 'Lie flat, keep legs straight, raise them to 90°, and lower slowly without arching the back.', instructionHe: 'שכב שטוח, שמור רגליים ישרות, הרם ל-90° ורד לאט בלי להקשית גב.' },
   'torso-rotation':        { name: 'Dumbbell Russian Twist', nameHe: 'רוטציה רוסית עם משקולת', instruction: 'Sit with feet off the floor, hold a light dumbbell, and rotate the torso side to side.', instructionHe: 'שב עם רגליים מורמות מהרצפה, החזק משקולת קלה וסובב גו לצדדים.' },
+  'romanian-deadlift':     { name: 'Dumbbell Romanian Deadlift', nameHe: 'רומניאן דדליפט עם משקולות', instruction: 'Hold dumbbells in front of thighs, hinge at the hips with soft knees, and drive hips forward to return.', instructionHe: 'החזק משקולות מול הירכיים, כופף מהאגן עם ברכיים רכות ודחוף אגן קדימה לחזרה.' },
+  'pull-up':               { name: 'Dumbbell Single-Arm Row', nameHe: 'חתירה יד אחת עם משקולת', instruction: 'Place one knee on a bench, row the dumbbell to the hip with a flat back.', instructionHe: 'הנח ברך אחת על ספסל, חתור את המשקולת לכיוון האגן עם גב ישר.' },
+  'chin-up':               { name: 'Dumbbell Supinated Row', nameHe: 'חתירה כפות ידיים כלפי מעלה', instruction: 'Bend over with palms facing up and row the dumbbells toward the lower abs.', instructionHe: 'כופף קדימה עם כפות ידיים פונות מעלה וחתור משקולות לכיוון הבטן התחתונה.' },
+  't-bar-row':             { name: 'Dumbbell Bent-Over Row', nameHe: 'חתירה מכופף עם משקולות', instruction: 'Hinge at the hips, keep the back flat, row both dumbbells to the lower ribs.', instructionHe: 'כופף מהאגן, שמור גב ישר, חתור שתי משקולות לכיוון הצלעות התחתונות.' },
+  'lat-pullover':          { name: 'Dumbbell Pullover', nameHe: 'פולאובר עם משקולת', instruction: 'Lie on a bench, hold one dumbbell with both hands overhead, and arc it back over the chest.', instructionHe: 'שכב על ספסל, החזק משקולת עם שתי ידיים מעל הראש ועביר אותה מעל החזה.' },
+  'hack-squat':            { name: 'Dumbbell Goblet Squat', nameHe: 'סקוואט גביע עם משקולת', instruction: 'Hold a dumbbell vertically at chest height, squat deep, and push through the heels.', instructionHe: 'החזק משקולת אנכית בגובה החזה, צנח עמוק ודחוף דרך העקבים.' },
+  'hip-abduction':         { name: 'Side-Lying Leg Raise', nameHe: 'הרמת רגל הצידה שכיבה', instruction: 'Lie on your side, keep the top leg straight, and raise it to hip height, then lower slowly.', instructionHe: 'שכב על הצד, שמור רגל עליונה ישרה והרם לגובה האגן, ואז הורד לאט.' },
+  'hip-adduction':         { name: 'Dumbbell Sumo Squat', nameHe: 'סקוואט סומו עם משקולת', instruction: 'Hold one dumbbell with both hands, take a wide stance, and squat deep.', instructionHe: 'החזק משקולת אחת עם שתי ידיים, פסע רחב וצנח עמוק.' },
+  'seated-calf-raise-m':   { name: 'Seated Dumbbell Calf Raise', nameHe: 'עלייה על קצות אצבעות יושב עם משקולת', instruction: 'Sit with dumbbells balanced on the knees, raise heels as high as possible, and lower slowly.', instructionHe: 'שב עם משקולות על הברכיים, הרם עקבים גבוה ככל האפשר והורד לאט.' },
+  'arnold-press':          { name: 'Dumbbell Shoulder Press', nameHe: 'לחיצת כתפיים עם משקולות', instruction: 'Sit upright, press dumbbells from shoulder height overhead without arching the back.', instructionHe: 'שב זקוף, לחץ משקולות מגובה הכתפיים מעלה בלי להקשית הגב.' },
+  'dumbbell-lateral':      { name: 'Dumbbell Lateral Raise', nameHe: 'הרחקת כתף עם משקולת', instruction: 'Raise dumbbells to shoulder height with soft elbows, pause at the top, then lower slowly.', instructionHe: 'הרם משקולות לגובה הכתף עם מרפקים רכים, עצור בראש התנועה והורד לאט.' },
+  'front-raise':           { name: 'Dumbbell Front Raise', nameHe: 'הרמת משקולת קדמית', instruction: 'Hold dumbbells at the thighs, raise them forward to shoulder height with straight arms.', instructionHe: 'החזק משקולות בירכיים, הרם קדימה לגובה הכתף עם ידיים ישרות.' },
+  'cable-curl':            { name: 'Dumbbell Bicep Curl', nameHe: 'כפיפת מרפקים עם משקולות', instruction: 'Stand tall, curl both dumbbells simultaneously, squeeze at the top, and lower slowly.', instructionHe: 'עמוד זקוף, כפוף שתי משקולות בו זמנית, כווץ בראש ורד לאט.' },
+  'overhead-triceps':      { name: 'Dumbbell Overhead Triceps Extension', nameHe: 'פשיטת מרפקים מעל הראש', instruction: 'Hold one dumbbell overhead with both hands, lower it behind the head, and extend back up.', instructionHe: 'החזק משקולת אחת מעל הראש עם שתי ידיים, הורד מאחורי הראש וחזור מעלה.' },
+  'ez-bar-curl':           { name: 'Dumbbell Alternating Curl', nameHe: 'כפיפת מרפקים לסירוגין עם משקולות', instruction: 'Curl one arm at a time, keeping the other at rest, and alternate until the set is complete.', instructionHe: 'כפוף יד אחת בכל פעם כשהשנייה במנוחה, ולסירוגין עד סיום הסט.' },
+  'close-grip-press':      { name: 'Dumbbell Triceps Press', nameHe: 'לחיצת מרפקים עם משקולות', instruction: 'Lie on the floor, hold dumbbells with palms facing each other, and press while keeping the elbows close.', instructionHe: 'שכב על הרצפה, החזק משקולות עם כפות ידיים פונות זו לזו ולחץ תוך שמירת המרפקים קרובים.' },
 }
 
 
@@ -325,6 +341,23 @@ function buildHomeWorkout(choice: HomeWorkoutCategory, profile: UserProfile): Wo
   }
 }
 
+const WGER_CATEGORY_HE_PREFIX: Record<string, string> = {
+  abs:       'תרגיל בטן',
+  arms:      'תרגיל ידיים',
+  chest:     'תרגיל חזה',
+  back:      'תרגיל גב',
+  legs:      'תרגיל רגליים',
+  glutes:    'תרגיל ישבן',
+  shoulders: 'תרגיל כתפיים',
+  full:      'תרגיל כל הגוף',
+  yoga:      'יוגה',
+  stretch:   'מתיחה',
+}
+
+function hebrewCategoryPrefix(choice: HomeWorkoutCategory): string {
+  return WGER_CATEGORY_HE_PREFIX[choice] ?? 'תרגיל'
+}
+
 function buildHomeWorkoutFromWger(
   choice: HomeWorkoutCategory,
   wgerExercises: WgerExercise[],
@@ -337,11 +370,12 @@ function buildHomeWorkoutFromWger(
   const count = getHomeExerciseCount(duration)
   const level = profile.fitnessLevel ?? 'intermediate'
   const reps = choice === 'abs' ? 15 : choice === 'arms' ? 12 : 10
+  const hePrefix = hebrewCategoryPrefix(choice)
 
   const exercises: Exercise[] = wgerExercises.slice(0, count).map((ex, i) => ({
     id: `wger-home-${ex.id}-${i}`,
     name: ex.name,
-    nameHe: ex.name,
+    nameHe: `${hePrefix} ${i + 1}`,
     sets,
     reps,
     restSeconds,
@@ -399,10 +433,11 @@ function getGymExerciseCount(duration: GymDuration) {
 }
 
 function analyzeGymProgress(progress: WorkoutProgressEntry[], profile: UserProfile): GymProgressSummary {
+  const gymOnlyProgress = progress.filter(entry => entry.type === 'gym')
   const start = getStartOfWeek().getTime()
-  const workoutsThisWeek = progress.filter(entry => new Date(entry.date).getTime() >= start).length
+  const workoutsThisWeek = gymOnlyProgress.filter(entry => new Date(entry.date).getTime() >= start).length
   const target = Math.max(1, profile.workout_days ?? 3)
-  const recent = progress.slice(0, 8)
+  const recent = gymOnlyProgress.slice(0, 8)
   const hardCount = recent.filter(entry => {
     const feeling = entry.feeling?.toLowerCase() ?? ''
     return feeling.includes('hard') || feeling.includes('קשה')
@@ -421,6 +456,34 @@ function analyzeGymProgress(progress: WorkoutProgressEntry[], profile: UserProfi
   }
 
   return { easyCount, hardCount, mode: 'steady', target, workoutsThisWeek }
+}
+
+// Maps sensitive areas to exercise keywords that should be avoided
+const SENSITIVE_AREA_KEYWORDS: Record<SensitiveArea, string[]> = {
+  back:      ['deadlift', 'row', 'back', 'גב', 'דדליפט'],
+  knees:     ['squat', 'lunge', 'leg press', 'knee', 'סקוואט', 'ברך', 'לנג'],
+  shoulders: ['overhead', 'press', 'shoulder', 'כתף', 'לחיצה מעל'],
+  neck:      ['neck', 'shrug', 'צוואר', 'שרגס'],
+  elbows:    ['curl', 'tricep', 'elbow', 'מרפק', 'כפיפה'],
+  hips:      ['hip', 'hip thrust', 'אגן', 'hip hinge'],
+  ankles:    ['calf', 'jump', 'קפיצה', 'עקב'],
+}
+
+function filterExercisesForSensitiveAreas(
+  exercises: Exercise[],
+  sensitiveAreas: SensitiveArea[],
+): { filtered: Exercise[]; removedNames: string[] } {
+  if (!sensitiveAreas.length) return { filtered: exercises, removedNames: [] }
+  const keywords = sensitiveAreas.flatMap(area => SENSITIVE_AREA_KEYWORDS[area] ?? [])
+  const filtered: Exercise[] = []
+  const removedNames: string[] = []
+  for (const ex of exercises) {
+    const searchStr = `${ex.name} ${ex.nameHe ?? ''} ${ex.instruction ?? ''}`.toLowerCase()
+    const blocked = keywords.some(kw => searchStr.includes(kw.toLowerCase()))
+    if (blocked) removedNames.push(ex.nameHe ?? ex.name)
+    else filtered.push(ex)
+  }
+  return { filtered, removedNames }
 }
 
 function getGymProgressNote(progress: GymProgressSummary, language: 'en' | 'he') {
@@ -1248,7 +1311,9 @@ function SelectWorkout({
   const profileLocations = getProfileWorkoutTypes(profile)
   const ageGuidance = getAgeGuidance(profile)
   const adjustedWorkoutDuration = selectedWorkout.durationMinutes
-  const adjustedExercises = selectedWorkout.exercises.map(exercise => getAgeAdjustedExercise(exercise, ageGuidance))
+  const sensitiveAreas = (profile.health?.sensitiveAreas ?? []) as SensitiveArea[]
+  const ageAdjustedExercises = selectedWorkout.exercises.map(exercise => getAgeAdjustedExercise(exercise, ageGuidance))
+  const { filtered: adjustedExercises, removedNames: sensitiveRemovedNames } = filterExercisesForSensitiveAreas(ageAdjustedExercises, sensitiveAreas)
   const adjustedAerobic = getAgeAdjustedAerobic(selectedAerobic, ageGuidance)
   const heartRatePreview = getHeartRateSummary(language).text
 
@@ -1257,11 +1322,28 @@ function SelectWorkout({
   const aerobicName = isHebrew ? selectedAerobic.nameHe : selectedAerobic.name
   const aerobicSummary = isHebrew ? selectedAerobic.summaryHe : selectedAerobic.summary
 
+  const hadPainLastWorkout = localStorage.getItem('smartfit_pain_last_workout') === 'true'
+
   return (
     <div className="workout-preview">
       <div className="workout-preview-header">
         <h1 className="workout-title">{isHebrew ? 'האימון שלך היום' : "Today's Workout"}</h1>
       </div>
+
+      {/* ── Pain follow-up banner ── */}
+      {hadPainLastWorkout && (
+        <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid #ef4444', borderRadius: 10, padding: '8px 12px', marginBottom: 8, fontSize: 13, color: '#ef4444' }}>
+          {isHebrew
+            ? '⚠️ האימון האחרון שלך דווח כואב. שים לב לגופך היום ושקול הפחתת עצימות.'
+            : '⚠️ You reported pain in your last workout. Listen to your body today and consider reducing intensity.'}
+          <button
+            onClick={() => { localStorage.removeItem('smartfit_pain_last_workout') }}
+            style={{ marginInlineStart: 8, background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}
+          >
+            {isHebrew ? 'הבנתי' : 'Got it'}
+          </button>
+        </div>
+      )}
 
       {/* ── Today's workout card — always first ── */}
       {selectedChoice === 'aerobic' ? (
@@ -1312,6 +1394,13 @@ function SelectWorkout({
             <span>{adjustedWorkoutDuration} min</span>
             <span>{adjustedExercises.length} {t('exercises')}</span>
           </div>
+          {sensitiveRemovedNames.length > 0 && (
+            <div style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid #fbbf24', borderRadius: 10, padding: '8px 12px', marginBottom: 8, fontSize: 13, color: '#fbbf24' }}>
+              {isHebrew
+                ? `⚠️ הוסרו תרגילים שעלולים להעמיס על האזורים הרגישים שלך: ${sensitiveRemovedNames.join(', ')}`
+                : `⚠️ Exercises removed due to your sensitive areas: ${sensitiveRemovedNames.join(', ')}`}
+            </div>
+          )}
           <ul className="exercise-list">
             {adjustedExercises.map((exercise, index) => (
               <li key={`workout-exercise-${selectedWorkout.id}-${exercise.id}-${index}`} className="exercise-list-item">
@@ -1435,8 +1524,8 @@ function CountdownOverlay({ value }: { value: number }) {
   )
 }
 
-function RestTimer({ seconds, onDone, onSkip }: { seconds: number; onDone: () => void; onSkip: () => void }) {
-  const { t, language } = useI18n()
+function RestTimer({ seconds, onDone, onSkip, nextExerciseName }: { seconds: number; onDone: () => void; onSkip: () => void; nextExerciseName?: string }) {
+  const { t, language, isHebrew } = useI18n()
   const [remaining, setRemaining] = useState(seconds)
 
   useEffect(() => {
@@ -1462,6 +1551,11 @@ function RestTimer({ seconds, onDone, onSkip }: { seconds: number; onDone: () =>
     <div className="rest-timer-overlay">
       <p className="rest-label">{t('restTime')}</p>
       <div className="rest-countdown">{remaining}s</div>
+      {nextExerciseName && (
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>
+          {isHebrew ? `הבא: ${nextExerciseName}` : `Next: ${nextExerciseName}`}
+        </p>
+      )}
       <button className="btn-ghost" onClick={onSkip}>{t('skipRest')}</button>
     </div>
   )
@@ -1603,6 +1697,10 @@ function AerobicTracker({ workout, onFinish }: { workout: AerobicWorkout; onFini
           <strong>{distanceKm.toFixed(2)} {isHebrew ? 'ק״מ' : 'km'}</strong>
         </div>
         <div className="aerobic-stat-box">
+          <span>{isHebrew ? 'קצב' : 'Pace'}</span>
+          <strong>{formatPace(durationMinutes, distanceKm, isHebrew ? 'he' : 'en')}</strong>
+        </div>
+        <div className="aerobic-stat-box">
           <span>{isHebrew ? 'קלוריות' : 'Calories'}</span>
           <strong>{calories} kcal</strong>
         </div>
@@ -1634,6 +1732,7 @@ export default function WorkoutPage() {
   const [setIndex, setSetIndex] = useState(0)
   const [showSkip, setShowSkip] = useState(false)
   const [lastFeedback, setLastFeedback] = useState<string | null>(null)
+  const [setFeedbackLog, setSetFeedbackLog] = useState<{ exerciseId: string; setIndex: number; feeling: string }[]>([])
   const [currentWeight, setCurrentWeight] = useState('')
   const exerciseWeightsRef = useRef<Record<string, number>>({})
   const gymProgress = useMemo(() => analyzeGymProgress(getWorkoutProgress(), profile), [profile])
@@ -1666,6 +1765,8 @@ export default function WorkoutPage() {
     if (focus === 'arms')    return 'arms'
     if (focus === 'legs')    return 'legs'
     if (focus === 'back')    return 'back'
+    if (focus === 'chest')   return 'chest'
+    if (focus === 'glutes')  return 'legs'  // map glutes → legs home workout
     return 'goal'  // 'goal' catch-all
   }
 
@@ -1686,7 +1787,15 @@ export default function WorkoutPage() {
     const isGymDay = (profile.gymDays ?? []).includes(todayKey)
 
     if (isGymDay) {
-      // Gym day takes priority
+      // Gym day takes priority — sync gym focus from weekly plan if available
+      const weeklyPlan = getProfileWeeklyPlan(profile)
+      const todayFocus = weeklyPlan[todayKey]
+      const FOCUS_TO_GYM_FOCUS: Partial<Record<ScheduleFocus, GymFocus>> = {
+        abs: 'abs', arms: 'arms', legs: 'legs', back: 'back', chest: 'chest',
+        shoulders: 'shoulders', goal: 'full',
+      } as Partial<Record<ScheduleFocus, GymFocus>>
+      const mappedFocus = FOCUS_TO_GYM_FOCUS[todayFocus]
+      if (mappedFocus) setGymFocuses([mappedFocus])
       setSelectedWorkout(auto)
       setSelectedChoice('gym')
     } else {
@@ -1705,10 +1814,12 @@ export default function WorkoutPage() {
 
   // Pre-fetch wger exercises for gym focuses whenever they change
   useEffect(() => {
+    const controller = new AbortController()
     const categoryIds = [...new Set(gymFocuses.flatMap(f => GYM_FOCUS_TO_WGER[f] ?? [9]))]
-    fetchWgerPool(categoryIds)
+    fetchWgerPool(categoryIds, controller.signal)
       .then(exercises => setWgerGymPool(exercises.map(wgerToGymTemplate)))
       .catch(() => {/* silently fall back to static pool */})
+    return () => controller.abort()
   }, [gymFocuses])
 
   // Pre-fetch ExerciseDB exercises for the selected gym focuses
@@ -1744,9 +1855,11 @@ export default function WorkoutPage() {
     if (selectedChoice === 'gym' || selectedChoice === 'aerobic') return
     const catId = HOME_CHOICE_TO_WGER[selectedChoice]
     if (!catId || wgerHomeCache[selectedChoice]) return
-    fetchWgerPool([catId])
+    const controller = new AbortController()
+    fetchWgerPool([catId], controller.signal)
       .then(exercises => setWgerHomeCache(prev => ({ ...prev, [selectedChoice]: exercises })))
       .catch(() => {/* silently fall back to mock data */})
+    return () => controller.abort()
   }, [selectedChoice]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const exercises = useMemo(
@@ -1763,6 +1876,7 @@ export default function WorkoutPage() {
     setSetIndex(0)
     setShowSkip(false)
     setLastFeedback(null)
+    setSetFeedbackLog([])
     setCountdown(3)
   }, [])
 
@@ -1875,6 +1989,7 @@ export default function WorkoutPage() {
         exerciseWeights: Object.keys(exerciseWeightsRef.current).length ? { ...exerciseWeightsRef.current } : undefined,
         feeling: lastFeedback ?? undefined,
         id: completionId,
+        setFeedback: setFeedbackLog.length ? setFeedbackLog : undefined,
         type: selectedChoice,
       })
     }
@@ -1932,6 +2047,9 @@ export default function WorkoutPage() {
   const handleSetDone = (feedback: string) => {
     if (lastFeedback) return
     setLastFeedback(feedback)
+    if (currentEx) {
+      setSetFeedbackLog(prev => [...prev, { exerciseId: currentEx.id, setIndex, feeling: feedback }])
+    }
     window.setTimeout(() => goToNext(), 800)
   }
 
@@ -1996,11 +2114,14 @@ export default function WorkoutPage() {
 
   if (phase === 'countdown') return <CountdownOverlay value={countdown} />
   if (phase === 'rest' && currentEx) {
+    const nextEx = exercises[exIndex + 1] ?? (setIndex + 1 < (currentEx.sets ?? 1) ? currentEx : exercises[exIndex + 1])
+    const nextName = nextEx ? (isHebrew ? nextEx.nameHe : nextEx.name) : undefined
     return (
       <RestTimer
         seconds={currentEx.restSeconds}
         onDone={() => setPhase('active')}
         onSkip={() => setPhase('active')}
+        nextExerciseName={nextName}
       />
     )
   }

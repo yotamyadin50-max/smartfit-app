@@ -3,14 +3,22 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../context/I18nContext'
 import { useUser } from '../context/UserContext'
-import { updateWorkoutEntry } from '../progressStorage'
+import { getWorkoutProgress, updateWorkoutEntry } from '../progressStorage'
 
 type Difficulty = 'easy' | 'medium' | 'hard'
 type Completion = 'yes' | 'partial' | 'no'
 type Feeling = 'strong' | 'normal' | 'tired'
 type Pain = 'yes' | 'no'
 
-const BASE_XP = 120
+function calcBaseXP(durationMinutes: number): number {
+  if (durationMinutes <= 20) return 60
+  if (durationMinutes <= 30) return 80
+  if (durationMinutes <= 45) return 100
+  if (durationMinutes <= 60) return 120
+  if (durationMinutes <= 75) return 140
+  return 160
+}
+
 const FEEDBACK_BONUS_XP = 15
 
 export default function WorkoutSummaryPage() {
@@ -29,6 +37,7 @@ export default function WorkoutSummaryPage() {
   const [notes, setNotes] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [bonusAwarded, setBonusAwarded] = useState(false)
+  const [earnedXP, setEarnedXP] = useState(120)
 
   useEffect(() => {
     const completionId = routeState?.completionId ?? 'direct-summary'
@@ -36,7 +45,11 @@ export default function WorkoutSummaryPage() {
 
     if (!window.sessionStorage.getItem(rewardKey)) {
       window.sessionStorage.setItem(rewardKey, 'true')
-      addXP(BASE_XP)
+      // Look up duration from progress storage to award the right XP amount
+      const entry = getWorkoutProgress().find(e => e.id === completionId)
+      const xp = calcBaseXP(entry?.duration ?? 45)
+      setEarnedXP(xp)
+      addXP(xp)
       incrementStreak()
     }
 
@@ -61,6 +74,12 @@ export default function WorkoutSummaryPage() {
         pain: pain ?? undefined,
       })
     }
+    // Persist pain flag so WorkoutPage can show a banner next session
+    if (pain === 'yes') {
+      localStorage.setItem('smartfit_pain_last_workout', 'true')
+    } else {
+      localStorage.removeItem('smartfit_pain_last_workout')
+    }
     setSubmitted(true)
     window.setTimeout(() => navigate('/dashboard'), 1200)
   }
@@ -76,7 +95,7 @@ export default function WorkoutSummaryPage() {
         <div className="celebration-emoji">✓</div>
         <h1 className="celebration-title">{t('workoutComplete')}</h1>
         <div className="celebration-badges">
-          <div className="xp-badge">+{BASE_XP} XP</div>
+          <div className="xp-badge">+{earnedXP} XP</div>
           <div className="streak-badge">{stats.streak + 1} {t('dayStreak')}</div>
         </div>
         <p className="celebration-sub">{t('consistency')}</p>

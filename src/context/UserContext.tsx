@@ -30,7 +30,7 @@ export type DailyActivityLevel = 'low' | 'medium' | 'high'
 export type HabitChallenge = 'start' | 'consistency' | 'time' | 'motivation'
 export type SensitiveArea = 'back' | 'knees' | 'shoulders' | 'neck' | 'elbows' | 'hips' | 'ankles'
 export type WeekDay = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
-export type ScheduleFocus = 'goal' | 'abs' | 'arms' | 'legs' | 'back' | 'aerobic' | 'rest'
+export type ScheduleFocus = 'goal' | 'abs' | 'arms' | 'legs' | 'back' | 'aerobic' | 'rest' | 'chest' | 'glutes'
 export type AgeGroup = 'teen' | 'adult' | 'senior'
 export type DevicePreferences = {
   cardioLocation?: boolean
@@ -100,7 +100,7 @@ export interface UserStats {
 }
 
 export const WEEK_DAYS: WeekDay[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-export const SCHEDULE_FOCUSES: ScheduleFocus[] = ['goal', 'abs', 'arms', 'legs', 'back', 'aerobic', 'rest']
+export const SCHEDULE_FOCUSES: ScheduleFocus[] = ['goal', 'abs', 'arms', 'legs', 'back', 'aerobic', 'rest', 'chest', 'glutes']
 export const MIN_PROFILE_AGE = 13
 export const MAX_PROFILE_AGE = 90
 export const DEFAULT_PROFILE_AGE = 28
