@@ -71,7 +71,11 @@ function sanitizePrompt(prompt: string) {
 
 function getStoredLanguage(): Language {
   if (typeof window === 'undefined') return 'en'
-  return window.localStorage.getItem('smartfit_language') === 'he' ? 'he' : 'en'
+  try {
+    return window.localStorage.getItem('smartfit_language') === 'he' ? 'he' : 'en'
+  } catch {
+    return 'en'
+  }
 }
 
 function wait(milliseconds: number) {

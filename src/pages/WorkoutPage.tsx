@@ -1883,6 +1883,7 @@ export default function WorkoutPage() {
   // wger exercise pools — loaded async and cached in localStorage by wgerService
   const [wgerGymPool, setWgerGymPool] = useState<GymExerciseTemplate[]>([])
   const [wgerHomeCache, setWgerHomeCache] = useState<Partial<Record<string, WgerExercise[]>>>({})
+  const wgerHomeFetchedRef = useRef(new Set<string>())
 
   // ExerciseDB API pool — loaded async, falls back to GYM_EXERCISES_FALLBACK
   const [apiGymPool, setApiGymPool] = useState<GymExerciseTemplate[]>([])
@@ -1993,17 +1994,13 @@ export default function WorkoutPage() {
   useEffect(() => {
     if (selectedChoice === 'gym' || selectedChoice === 'aerobic') return
     const catId = HOME_CHOICE_TO_WGER[selectedChoice]
-    if (!catId || wgerHomeCache[selectedChoice]) return
+    if (!catId || wgerHomeFetchedRef.current.has(selectedChoice)) return
+    wgerHomeFetchedRef.current.add(selectedChoice)
     const controller = new AbortController()
     fetchWgerPool([catId], controller.signal)
       .then(exercises => setWgerHomeCache(prev => ({ ...prev, [selectedChoice]: exercises })))
       .catch(() => {/* silently fall back to mock data */})
     return () => controller.abort()
-  // wgerHomeCache is intentionally excluded: including it would create an infinite loop
-  // because the effect itself writes to wgerHomeCache via setWgerHomeCache.
-  // The early-return guard `if (!catId || wgerHomeCache[selectedChoice]) return` is the
-  // correct de-duplication mechanism here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChoice])
 
   const exercises = useMemo(() => {
