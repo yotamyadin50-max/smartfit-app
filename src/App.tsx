@@ -91,7 +91,7 @@ function InviteHandler() {
       .then(result => {
         if (result === 'ok') {
           addXP(50) // +50 XP for new friend
-          console.log('[Friends] Friendship created +50 XP')
+          if (import.meta.env.DEV) console.log('[Friends] Friendship created +50 XP')
         }
       })
       .catch(err => console.warn('[Friends] acceptInvite failed', err))
@@ -112,11 +112,12 @@ function DashboardResetGuard() {
     if (!user || !cloudSynced || !profile.onboardingComplete) return
 
     const handleResume = () => {
+      if (window.location.pathname.startsWith('/workout')) return
       try {
         const raw = localStorage.getItem(INACTIVE_KEY)
         if (!raw) return
         const elapsed = Date.now() - parseInt(raw, 10)
-        if (elapsed >= RESET_THRESHOLD_MS && !window.location.pathname.startsWith('/workout')) navigate('/dashboard', { replace: true })
+        if (elapsed >= RESET_THRESHOLD_MS) navigate('/dashboard', { replace: true })
       } catch { /* localStorage blocked */ }
     }
 
@@ -157,7 +158,7 @@ function ReminderScheduler() {
   useEffect(() => {
     if (!user || !cloudSynced || !profile.onboardingComplete) return
     syncScheduledReminders(language === 'he').catch(error => {
-      console.log('[Reminders] startup sync failed', error)
+      console.warn('[Reminders] startup sync failed', error)
     })
     checkInactivityReminder(language === 'he', stats.lastWorkoutDate)
   }, [cloudSynced, language, profile.onboardingComplete, stats.lastWorkoutDate, user])
@@ -168,7 +169,7 @@ function ReminderScheduler() {
 function AppAccessSync() {
   useEffect(() => {
     syncKnownAppAccess().catch(error => {
-      console.log('[AppAccess] passive sync failed', error)
+      console.warn('[AppAccess] passive sync failed', error)
     })
   }, [])
 

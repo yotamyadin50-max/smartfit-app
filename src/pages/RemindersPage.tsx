@@ -28,8 +28,8 @@ export default function RemindersPage() {
   const dayLabels = isHebrew ? DAY_LABELS_HE : DAY_LABELS_EN
 
   useEffect(() => {
-    getNotificationPermissionGranted().then(setNotifGranted)
-    syncScheduledReminders(isHebrew).catch(error => console.log('[Reminders] sync failed', error))
+    getNotificationPermissionGranted().then(setNotifGranted).catch(err => console.warn('[Reminders] permission check failed', err))
+    syncScheduledReminders(isHebrew).catch(error => console.warn('[Reminders] sync failed', error))
   }, [isHebrew])
 
   const reload = () => setReminders(getReminders())
@@ -72,13 +72,13 @@ export default function RemindersPage() {
   const handleDelete = (id: string) => {
     deleteReminder(id)
     reload()
-    syncScheduledReminders(isHebrew).catch(error => console.log('[Reminders] sync failed after delete', error))
+    syncScheduledReminders(isHebrew).catch(error => console.warn('[Reminders] sync failed after delete', error))
   }
 
   const handleToggle = (id: string) => {
     toggleReminder(id)
     reload()
-    syncScheduledReminders(isHebrew).catch(error => console.log('[Reminders] sync failed after toggle', error))
+    syncScheduledReminders(isHebrew).catch(error => console.warn('[Reminders] sync failed after toggle', error))
   }
 
   const card = {
