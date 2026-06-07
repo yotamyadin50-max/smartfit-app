@@ -128,10 +128,8 @@ export default function ChatPage() {
       }))
       setMessages(storedMessages.map(toUiMessage))
     })
-  // isSupabaseConfigured is a module-level constant (never changes);
-  // setMessages is stable from useState — both are safe to omit from deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // isSupabaseConfigured is a module-level constant (never changes) — safe to omit.
+  }, [setMessages])
 
   useEffect(() => () => {
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
@@ -220,7 +218,7 @@ export default function ChatPage() {
 
     if (activeRequestRef.current) {
       cancelledRequestIdsRef.current.add(activeRequestIdRef.current)
-      console.log('AI request aborted', { reason: 'new-message' })
+      if (import.meta.env.DEV) console.log('AI request aborted', { reason: 'new-message' })
       activeRequestRef.current.abort(new DOMException('new-message', 'AbortError'))
     }
 
@@ -271,7 +269,7 @@ export default function ChatPage() {
       }
 
       const replyText = replyResult.text.trim()
-      console.log('AI reply text:', replyText)
+      if (import.meta.env.DEV) console.log('AI reply text:', replyText)
       if (!replyText) {
         const fallback = handleFallback({
           profile,
@@ -322,7 +320,7 @@ export default function ChatPage() {
         return
       }
 
-      console.log('Ascend AI chat AI final failure', error)
+      console.warn('Ascend AI chat AI final failure', error)
       const fallback = handleFallback({
         profile,
         language,
