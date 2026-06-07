@@ -245,6 +245,7 @@ export function getCachedAiReply(cacheKey: string): CachedAiReply | null {
     .filter(item => now - new Date(item.createdAt).getTime() <= AI_CACHE_TTL_MS)
 
   const match = cache.find(item => item.cacheKey === cacheKey)
+  if (import.meta.env.DEV) console.log(`[AI cache] ${match ? 'HIT' : 'MISS'} key=${cacheKey.slice(0, 60)}`)
   writeJson(AI_CACHE_KEY, cache.slice(0, MAX_CACHE_ITEMS))
   return match ?? null
 }

@@ -56,6 +56,4 @@ export async function generateProgressInsight(historyData: object): Promise<stri
   return reply.text
 }
 
-const AI_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined
-export const isAIConfigured =
-  typeof AI_API_KEY === 'string' && AI_API_KEY.length > 10
+export const isAIConfigured = !!(import.meta.env.VITE_API_BASE_URL as string | undefined)

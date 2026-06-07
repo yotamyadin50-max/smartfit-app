@@ -12,6 +12,7 @@
  */
 
 import { isSupabaseConfigured, supabase } from './supabase'
+import { writeJson } from './storage'
 import type { UserProfile, UserStats } from '../context/UserContext'
 import type { FoodEntry, WeightEntry, SavedMeal, ShredGoal, ManualBurnEntry } from './shredStorage'
 
@@ -259,14 +260,12 @@ export async function loadUserDataFromSupabase(userId: string) {
 
   // Restore shred data to localStorage so ShredPage reads it immediately
   if (shredData) {
-    try {
-      if (shredData.foodLog?.length)      localStorage.setItem('smartfit_shred_food',         JSON.stringify(shredData.foodLog))
-      if (shredData.weightLog?.length)    localStorage.setItem('smartfit_shred_weight',       JSON.stringify(shredData.weightLog))
-      if (shredData.savedMeals?.length)   localStorage.setItem('smartfit_shred_saved_meals',  JSON.stringify(shredData.savedMeals))
-      if (shredData.goal)                 localStorage.setItem('smartfit_shred_goal',          JSON.stringify(shredData.goal))
-      if (shredData.manualBurnLog?.length) localStorage.setItem('smartfit_shred_manual_burn', JSON.stringify(shredData.manualBurnLog))
-      if (import.meta.env.DEV) console.log(TAG, '✅ shred_data restored to localStorage')
-    } catch { /* quota */ }
+    if (shredData.foodLog?.length)       writeJson('smartfit_shred_food',         shredData.foodLog)
+    if (shredData.weightLog?.length)     writeJson('smartfit_shred_weight',       shredData.weightLog)
+    if (shredData.savedMeals?.length)    writeJson('smartfit_shred_saved_meals',  shredData.savedMeals)
+    if (shredData.goal)                  writeJson('smartfit_shred_goal',          shredData.goal)
+    if (shredData.manualBurnLog?.length) writeJson('smartfit_shred_manual_burn',  shredData.manualBurnLog)
+    if (import.meta.env.DEV) console.log(TAG, '✅ shred_data restored to localStorage')
   }
 
   return { profile, stats }
