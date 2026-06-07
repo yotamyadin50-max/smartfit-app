@@ -180,7 +180,7 @@ export async function loadProgressFromSupabase(userId: string): Promise<Progress
   }
 
   const rows = (data ?? []) as ProgressRow[]
-  console.log(TAG, `✅ progress loaded from cloud — ${rows.length} entries`)
+  if (import.meta.env.DEV) console.log(TAG, `✅ progress loaded from cloud — ${rows.length} entries`)
   return rows
 }
 
@@ -212,7 +212,7 @@ export async function saveChatMessageToSupabase(
   if (error) {
     console.warn(TAG, '❌ save chat message failed', error.message)
   } else {
-    console.log(TAG, `✅ chat message saved [${message.role}]`, message.text.slice(0, 60))
+    if (import.meta.env.DEV) console.log(TAG, `✅ chat message saved [${message.role}]`, message.text.slice(0, 60))
   }
 }
 
@@ -235,7 +235,7 @@ export async function loadChatHistoryFromSupabase(userId: string): Promise<ChatR
   }
 
   const rows = ((data ?? []) as ChatRow[]).reverse()
-  console.log(TAG, `✅ chat history loaded from cloud — ${rows.length} messages`)
+  if (import.meta.env.DEV) console.log(TAG, `✅ chat history loaded from cloud — ${rows.length} messages`)
   return rows
 }
 
@@ -249,7 +249,7 @@ export async function loadChatHistoryFromSupabase(userId: string): Promise<ChatR
 export async function loadUserDataFromSupabase(userId: string) {
   if (!isSupabaseConfigured) return null
 
-  console.log(TAG, '🔄 loading user data from cloud...', { userId })
+  if (import.meta.env.DEV) console.log(TAG, '🔄 loading user data from cloud...', { userId })
 
   const [profile, stats, shredData] = await Promise.all([
     loadProfileFromSupabase(userId),
@@ -265,7 +265,7 @@ export async function loadUserDataFromSupabase(userId: string) {
       if (shredData.savedMeals?.length)   localStorage.setItem('smartfit_shred_saved_meals',  JSON.stringify(shredData.savedMeals))
       if (shredData.goal)                 localStorage.setItem('smartfit_shred_goal',          JSON.stringify(shredData.goal))
       if (shredData.manualBurnLog?.length) localStorage.setItem('smartfit_shred_manual_burn', JSON.stringify(shredData.manualBurnLog))
-      console.log(TAG, '✅ shred_data restored to localStorage')
+      if (import.meta.env.DEV) console.log(TAG, '✅ shred_data restored to localStorage')
     } catch { /* quota */ }
   }
 
@@ -280,7 +280,7 @@ export async function saveShredDataToSupabase(userId: string, data: ShredData): 
     .from('profiles')
     .upsert({ id: userId, shred_data: data, updated_at: new Date().toISOString() })
   if (error) console.warn(TAG, '❌ save shred_data failed', error.message)
-  else console.log(TAG, '✅ shred_data saved')
+  else if (import.meta.env.DEV) console.log(TAG, '✅ shred_data saved')
 }
 
 export async function loadShredDataFromSupabase(userId: string): Promise<ShredData | null> {
@@ -301,6 +301,7 @@ export async function loadShredDataFromSupabase(userId: string): Promise<ShredDa
  * Call from DevTools: import('/src/lib/supabaseDb.ts').then(m => m.checkSupabaseConnection())
  */
 export async function checkSupabaseConnection(): Promise<void> {
+  if (!import.meta.env.DEV) return
   if (!isSupabaseConfigured) {
     console.warn(TAG, '⚠️  Supabase is NOT configured — running in mock mode. Check your .env file.')
     return
