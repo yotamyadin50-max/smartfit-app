@@ -44,8 +44,12 @@ export function estimateCardioCalories(input: CardioEstimateInput) {
     ? input.distanceKm * weightKg * 0.32
     : input.distanceKm * weightKg * (input.activityType === 'run' ? 1 : 0.55)
 
+  // Use distance-formula only when pace is abnormal (faster than 2 min/km or slower than 20 min/km)
   if (input.distanceKm > 0 && input.durationMinutes > 0) {
-    return Math.max(0, Math.round((metEstimate + distanceEstimate) / 2))
+    const paceMinPerKm = input.durationMinutes / input.distanceKm
+    if (paceMinPerKm < 2 || paceMinPerKm > 20) {
+      return Math.max(0, Math.round(distanceEstimate))
+    }
   }
 
   return Math.max(0, Math.round(metEstimate))

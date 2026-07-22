@@ -9,7 +9,11 @@ const OPENROUTER_URL  = 'https://openrouter.ai/api/v1/chat/completions'
 const HTTP_REFERER    = 'http://localhost:5173'
 const APP_TITLE       = 'Ascend AI'
 const TIMEOUT_MS      = 30000
-// Diverse model list — different providers have separate rate-limit pools
+// Free-tier models first. google/gemini-flash-1.5 (paid) is kept at the end,
+// not first — live testing during this session confirmed it currently fails
+// on every request (no usable credit/access on this OpenRouter key), so
+// trying it first was wasting one guaranteed-failed round-trip per chat
+// message. If credit is added back, move it to the front again.
 const MODELS = [
   'nvidia/nemotron-3-nano-30b-a3b:free',           // NVIDIA 30B — less traffic
   'z-ai/glm-4.5-air:free',                         // Z-AI — less popular
@@ -21,6 +25,7 @@ const MODELS = [
   'openai/gpt-oss-120b:free',                       // OpenAI 120B
   'meta-llama/llama-3.2-3b-instruct:free',          // Meta 3B — small fallback
   'nousresearch/hermes-3-llama-3.1-405b:free',      // last resort
+  'google/gemini-flash-1.5',                        // paid — currently failing, tried last
 ]
 
 export const MAX_PROMPT_LENGTH = 4000
@@ -34,9 +39,15 @@ const IP_RATE_MAX        = 15       // max AI requests per minute per IP
 const ipRequestLog = new Map()      // ip → [timestamp, ...]
 
 function getClientIp(req) {
-  // Support reverse-proxy headers (Vercel, Netlify, Cloudflare)
+  // Support reverse-proxy headers (Vercel, Netlify, Cloudflare). The LEFTMOST
+  // entry in x-forwarded-for is client-supplied and can be spoofed to get a
+  // fresh rate-limit bucket on every request; the edge proxy appends the
+  // real client IP as the LAST entry, which is the one to trust.
   const forwarded = req.headers?.['x-forwarded-for']
-  if (forwarded) return forwarded.split(',')[0].trim()
+  if (forwarded) {
+    const parts = forwarded.split(',').map(part => part.trim()).filter(Boolean)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
   return req.socket?.remoteAddress ?? 'unknown'
 }
 
@@ -63,7 +74,7 @@ function checkIpRateLimit(req) {
 // Remembers which models are rate-limited and for how long (60s cooldown).
 // Persists across requests for the lifetime of the server process.
 
-const RATE_LIMIT_COOLDOWN_MS = 60_000
+const RATE_LIMIT_COOLDOWN_MS = 30_000
 const rateLimitedUntil = new Map() // modelId → timestamp when it's safe to retry
 
 function isRateLimited(model) {
@@ -92,6 +103,30 @@ function sanitizePrompt(value) {
   if (!prompt) throw { status: 400, message: 'Prompt cannot be empty.' }
   if (prompt.length > MAX_PROMPT_LENGTH) throw { status: 413, message: 'Prompt too long (max 4000).' }
   return prompt
+}
+
+const MAX_MESSAGES_TOTAL_LENGTH = 6000
+const ALLOWED_MESSAGE_ROLES = new Set(['system', 'user', 'assistant'])
+
+// Structured chat history (system + turn-by-turn), used by ChatPage instead of one
+// flattened prompt string, so the model gets a proper multi-turn conversation.
+function sanitizeMessages(rawMessages) {
+  if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
+    throw { status: 400, message: 'Messages must be a non-empty array.' }
+  }
+  const cleaned = rawMessages
+    .filter(m => m && typeof m === 'object' && ALLOWED_MESSAGE_ROLES.has(m.role) && typeof m.content === 'string')
+    .map(m => ({ role: m.role, content: m.content.replace(/\p{Cc}/gu, '').trim() }))
+    .filter(m => m.content.length > 0)
+
+  if (cleaned.length === 0) {
+    throw { status: 400, message: 'Messages must contain at least one non-empty message.' }
+  }
+  const totalLength = cleaned.reduce((sum, m) => sum + m.content.length, 0)
+  if (totalLength > MAX_MESSAGES_TOTAL_LENGTH) {
+    throw { status: 413, message: `Messages too long (max ${MAX_MESSAGES_TOTAL_LENGTH} chars combined).` }
+  }
+  return cleaned
 }
 
 function getPromptLanguage(prompt) {
@@ -174,7 +209,7 @@ function localModeReply(prompt, reason) {
 
 // ── Core OpenRouter request ──────────────────────────────────────────────────
 
-async function callOpenRouter(apiKey, model, prompt) {
+async function callOpenRouter(apiKey, model, messages) {
   console.log('Trying OpenRouter:', model)
 
   const controller = new AbortController()
@@ -192,7 +227,7 @@ async function callOpenRouter(apiKey, model, prompt) {
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: prompt }],
+        messages,
       }),
       signal: controller.signal,
     })
@@ -233,7 +268,7 @@ async function callOpenRouter(apiKey, model, prompt) {
 
   const text = typeof content === 'string' ? content.trim() : String(content).trim()
 
-  console.log('OpenRouter success')
+  console.log(`OpenRouter success — model: ${data.model || model}`)
   return {
     text,
     model: data.model || model,
@@ -245,18 +280,47 @@ async function callOpenRouter(apiKey, model, prompt) {
 // ── Main handler (called by api/ai.js and vite dev middleware) ───────────────
 
 export async function handleOpenRouterAiPayload(payload) {
-  // 1. Sanitise prompt
+  // 1. Sanitise input — either a structured messages array (chat, multi-turn)
+  //    or a single prompt string (one-shot generations), never both.
+  let messages
   let prompt
-  try {
-    prompt = sanitizePrompt(payload?.prompt)
-  } catch (err) {
-    console.log('OpenRouter skipped: bad prompt —', err.message)
-    return {
-      text: '[Local mode] Prompt was empty or invalid.',
-      model: 'local-mode',
-      mode: 'local',
-      modeLabel: 'Local mode — invalid prompt',
+  if (Array.isArray(payload?.messages) && payload.messages.length > 0) {
+    try {
+      messages = sanitizeMessages(payload.messages)
+      // Representative text for local-mode language detection / fallback replies.
+      const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')
+      prompt = (lastUserMessage ?? messages[messages.length - 1]).content
+    } catch (err) {
+      console.log('OpenRouter: messages rejected —', err.message, '— falling back to flat prompt if present')
+      // The client (aiClient.ts) always sends payload.prompt alongside
+      // payload.messages, so a rejected messages array (e.g. over the
+      // combined-length cap) can still be served from the flat prompt
+      // instead of dropping straight to a confusing local-mode reply.
+      try {
+        prompt = sanitizePrompt(payload?.prompt)
+        messages = [{ role: 'user', content: prompt }]
+      } catch {
+        return {
+          text: localModeReply(typeof payload?.prompt === 'string' ? payload.prompt : '', 'message too long or invalid'),
+          model: 'local-mode',
+          mode: 'local',
+          modeLabel: 'Local mode — invalid messages',
+        }
+      }
     }
+  } else {
+    try {
+      prompt = sanitizePrompt(payload?.prompt)
+    } catch (err) {
+      console.log('OpenRouter skipped: bad prompt —', err.message)
+      return {
+        text: localModeReply(typeof payload?.prompt === 'string' ? payload.prompt : '', 'prompt was empty or invalid'),
+        model: 'local-mode',
+        mode: 'local',
+        modeLabel: 'Local mode — invalid prompt',
+      }
+    }
+    messages = [{ role: 'user', content: prompt }]
   }
 
   // 2. Require API key
@@ -281,7 +345,7 @@ export async function handleOpenRouterAiPayload(payload) {
       continue
     }
     try {
-      return await callOpenRouter(apiKey, model, prompt)
+      return await callOpenRouter(apiKey, model, messages)
     } catch (err) {
       if (err.isRateLimit) {
         markRateLimited(model)

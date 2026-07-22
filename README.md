@@ -1,6 +1,6 @@
-# SmartFit
+# Ascend AI
 
-SmartFit is a fitness and nutrition app scaffold with personalized workout, meal, progress, chat, XP, streak, and achievement screens.
+Ascend AI is a fitness and nutrition app scaffold with personalized workout, meal, progress, chat, XP, streak, and achievement screens.
 
 Current status: local-first template. Supabase is not connected. AI requests are routed through the local/serverless `/api/ai` endpoint so the OpenRouter key is never exposed in browser code.
 
@@ -9,7 +9,7 @@ Current status: local-first template. Supabase is not connected. AI requests are
 On this Windows machine you can double-click:
 
 ```text
-Open SmartFit.cmd
+Open Ascend AI.cmd
 ```
 
 That starts the Vite dev server and opens the app.

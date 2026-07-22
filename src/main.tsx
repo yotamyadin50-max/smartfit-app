@@ -5,7 +5,6 @@ import { UserProvider } from './context/UserContext'
 import { I18nProvider } from './context/I18nContext'
 import App from './App'
 import './index.css'
-import './floatingAiChat.js'
 import { initCapacitor } from './lib/capacitorInit'
 
 // Initialise Capacitor native features (StatusBar, back-button, safe-area).

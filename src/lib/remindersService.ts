@@ -197,6 +197,33 @@ function getReminderBody(reminder: Reminder, isHebrew: boolean) {
     : `Time for your Ascend AI workout. Days: ${dayText}.`
 }
 
+// Fire-immediately notification (e.g. "rest is over") for native + browser.
+// The web Notification API used by src/lib/notifications.ts silently no-ops
+// inside the Android/iOS Capacitor WebView, so any caller that needs a
+// notification to actually show up on a native build should use this instead.
+export async function sendInstantNotification(title: string, body: string): Promise<void> {
+  if (isNativeNotifications()) {
+    try {
+      const granted = await getNotificationPermissionGranted()
+      if (!granted) return
+      await LocalNotifications.schedule({
+        notifications: [{
+          autoCancel: true,
+          body,
+          id: stableNotificationId(`smartfit-instant:${Date.now()}`),
+          title,
+        }],
+      })
+    } catch (error) {
+      console.warn('[Reminders] Could not send instant notification', error)
+    }
+    return
+  }
+
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  new Notification(title, { body })
+}
+
 async function ensureNativeChannels() {
   if (!isNativeNotifications()) return
   try {

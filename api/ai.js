@@ -1,8 +1,8 @@
 import {
+  checkIpRateLimit,
   getPublicErrorResponse,
   handleOpenRouterAiPayload,
   readNodeRequestJson,
-  sendJson,
 } from '../server/openRouterAi.js'
 
 // Origins allowed to call this endpoint.
@@ -36,6 +36,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST, OPTIONS')
     res.status(405).json({ error: 'Method not allowed.' })
+    return
+  }
+
+  const rateLimit = checkIpRateLimit(req)
+  if (rateLimit.limited) {
+    res.setHeader('Retry-After', String(rateLimit.retryAfter))
+    res.status(429).json({ error: 'Too many AI requests. Please wait a moment.', retryAfter: rateLimit.retryAfter })
     return
   }
 

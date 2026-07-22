@@ -2,7 +2,12 @@ const USDA_ENDPOINT = 'https://api.nal.usda.gov/fdc/v1/foods/search'
 const DEFAULT_USDA_KEY = 'DEMO_KEY'
 
 function getUsdaApiKey() {
-  return process.env.USDA_API_KEY || process.env.FDC_API_KEY || DEFAULT_USDA_KEY
+  return (
+    process.env.USDA_API_KEY ||
+    process.env.FDC_API_KEY ||
+    process.env.VITE_USDA_API_KEY ||
+    DEFAULT_USDA_KEY
+  )
 }
 
 function cleanQuery(value) {
@@ -37,6 +42,11 @@ function normalizeFood(food) {
 }
 
 export async function searchUsdaFoods(rawQuery) {
+  if (process.env.NODE_ENV !== 'production') {
+    const key = getUsdaApiKey()
+    console.log('[USDA] using key:', key === DEFAULT_USDA_KEY ? 'DEMO_KEY (limited!)' : key.slice(0, 6) + '...')
+  }
+
   const query = cleanQuery(rawQuery)
   if (!query) {
     const error = new Error('Missing query param ?q=')

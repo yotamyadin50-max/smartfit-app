@@ -1,65 +1,80 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <defs>
+    <radialGradient id="bg" cx="40%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#1a0a3a"/>
+      <stop offset="60%" stop-color="#0d0620"/>
+      <stop offset="100%" stop-color="#070c18"/>
+    </radialGradient>
+    <radialGradient id="blob1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#5c1aaa" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#5c1aaa" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blob2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2d0a6e" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#2d0a6e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
   <!-- Background -->
-  <circle cx="120" cy="120" r="115" fill="#0f0f0f"/>
-  <circle cx="120" cy="120" r="115" fill="none" stroke="#22c55e" stroke-width="3"/>
+  <circle cx="120" cy="120" r="120" fill="url(#bg)"/>
+
+  <!-- Subtle purple blobs -->
+  <ellipse cx="80" cy="90" rx="90" ry="70" fill="url(#blob1)"/>
+  <ellipse cx="160" cy="155" rx="80" ry="65" fill="url(#blob2)"/>
 
   <!-- LEFT barbell — diagonal up-left -->
   <g transform="rotate(-42, 60, 100)">
     <rect x="22" y="82" width="76" height="10" rx="5" fill="#22c55e"/>
-    <!-- left plate -->
     <rect x="10" y="70" width="14" height="34" rx="7" fill="#22c55e"/>
-    <!-- right plate -->
     <rect x="96" y="70" width="14" height="34" rx="7" fill="#22c55e"/>
   </g>
 
   <!-- RIGHT barbell — diagonal up-right -->
   <g transform="rotate(42, 180, 100)">
     <rect x="142" y="82" width="76" height="10" rx="5" fill="#22c55e"/>
-    <!-- left plate -->
     <rect x="130" y="70" width="14" height="34" rx="7" fill="#22c55e"/>
-    <!-- right plate -->
     <rect x="216" y="70" width="14" height="34" rx="7" fill="#22c55e"/>
   </g>
 
-  <!-- Tiger head -->
+  <!-- Tiger head — all black -->
   <!-- Ears -->
-  <polygon points="88,82 76,56 100,78" fill="#f97316"/>
-  <polygon points="152,82 164,56 140,78" fill="#f97316"/>
-  <polygon points="90,80 80,62 100,76" fill="#fbbf24"/>
-  <polygon points="150,80 160,62 140,76" fill="#fbbf24"/>
+  <polygon points="88,82 76,56 100,78" fill="#1a1a1a"/>
+  <polygon points="152,82 164,56 140,78" fill="#1a1a1a"/>
+  <polygon points="90,80 80,62 100,76" fill="#2a2a2a"/>
+  <polygon points="150,80 160,62 140,76" fill="#2a2a2a"/>
 
   <!-- Head -->
-  <ellipse cx="120" cy="128" rx="46" ry="44" fill="#f97316"/>
+  <ellipse cx="120" cy="128" rx="46" ry="44" fill="#111111"/>
 
-  <!-- Face (lighter) -->
-  <ellipse cx="120" cy="138" rx="26" ry="22" fill="#fef3c7"/>
+  <!-- Face (slightly lighter) -->
+  <ellipse cx="120" cy="138" rx="26" ry="22" fill="#1e1e1e"/>
 
-  <!-- Stripes -->
-  <path d="M88 100 Q84 116 86 128" stroke="#c2410c" stroke-width="4" fill="none" stroke-linecap="round"/>
-  <path d="M95 94 Q90 110 92 122" stroke="#c2410c" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <path d="M152 100 Q156 116 154 128" stroke="#c2410c" stroke-width="4" fill="none" stroke-linecap="round"/>
-  <path d="M145 94 Q150 110 148 122" stroke="#c2410c" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Stripes (dark grey on black) -->
+  <path d="M88 100 Q84 116 86 128" stroke="#333" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M95 94 Q90 110 92 122" stroke="#2a2a2a" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M152 100 Q156 116 154 128" stroke="#333" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M145 94 Q150 110 148 122" stroke="#2a2a2a" stroke-width="3" fill="none" stroke-linecap="round"/>
 
   <!-- Eyes -->
-  <ellipse cx="105" cy="118" rx="9" ry="9" fill="#1a1a1a"/>
-  <ellipse cx="135" cy="118" rx="9" ry="9" fill="#1a1a1a"/>
+  <ellipse cx="105" cy="118" rx="9" ry="9" fill="#0a0a0a"/>
+  <ellipse cx="135" cy="118" rx="9" ry="9" fill="#0a0a0a"/>
   <circle cx="107" cy="116" r="4" fill="#22c55e"/>
   <circle cx="137" cy="116" r="4" fill="#22c55e"/>
   <circle cx="109" cy="114" r="2" fill="white"/>
   <circle cx="139" cy="114" r="2" fill="white"/>
 
   <!-- Nose -->
-  <ellipse cx="120" cy="132" rx="6" ry="5" fill="#7c2d12"/>
+  <ellipse cx="120" cy="132" rx="6" ry="5" fill="#0d0d0d"/>
 
   <!-- Mouth -->
-  <path d="M114 137 Q120 143 126 137" stroke="#7c2d12" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M114 137 Q120 143 126 137" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
 
   <!-- Whiskers -->
-  <line x1="96" y1="134" x2="70" y2="130" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="96" y1="139" x2="70" y2="140" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="144" y1="134" x2="170" y2="130" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="144" y1="139" x2="170" y2="140" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="96" y1="134" x2="70" y2="130" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="96" y1="139" x2="70" y2="140" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="144" y1="134" x2="170" y2="130" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="144" y1="139" x2="170" y2="140" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>
 
-  <!-- SmartFit text -->
+  <!-- Ascend AI text -->
   <text x="120" y="196" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="15" fill="#22c55e" letter-spacing="3">SMARTFIT</text>
 </svg>

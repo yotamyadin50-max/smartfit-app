@@ -113,6 +113,45 @@ function createGeneratedMeal(ingredientText: string, t: (key: string) => string)
   }
 }
 
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{')
+  if (start === -1) return null
+  let depth = 0
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] === '{') depth += 1
+    else if (text[i] === '}') {
+      depth -= 1
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+function parseAiMealMacros(text: string): { description?: string; calories: number; protein: number; carbs: number; fat: number } | null {
+  // Free-tier AI models often wrap the JSON in explanation text or show a
+  // second unrelated example — a greedy "first { to last }" match would
+  // span both and fail to parse, so extract just the first balanced object.
+  const jsonBlock = extractFirstJsonObject(text)
+  if (!jsonBlock) return null
+  try {
+    const data = JSON.parse(jsonBlock) as Record<string, unknown>
+    const { calories, protein, carbs, fat } = data
+    const values = [calories, protein, carbs, fat]
+    if (!values.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) {
+      return null
+    }
+    return {
+      description: typeof data.description === 'string' ? data.description.trim() : undefined,
+      calories: Math.round(calories as number),
+      protein: Math.round(protein as number),
+      carbs: Math.round(carbs as number),
+      fat: Math.round(fat as number),
+    }
+  } catch {
+    return null
+  }
+}
+
 function MacroBar({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
   return (
     <span className="macro-chip" style={{ borderColor: color }}>
@@ -206,8 +245,23 @@ function MealCreator({ portionMultiplier }: { portionMultiplier: number }) {
       const ingredientList = parseIngredientList(ingredients)
       const aiReply = await generateMealFromIngredients(ingredientList)
       const replyText = (aiReply as { text?: string }).text?.trim()
-      if (replyText && formulaResult) {
-        // Use AI text as the description; keep formula macros tagged as estimate
+      const aiMeal = replyText ? parseAiMealMacros(replyText) : null
+
+      if (aiMeal && formulaResult) {
+        // Real macros from the AI, computed from the actual ingredients
+        setResult({
+          ...formulaResult,
+          description: aiMeal.description || formulaResult.description,
+          macros: {
+            calories: aiMeal.calories,
+            protein: aiMeal.protein,
+            carbs: aiMeal.carbs,
+            fat: aiMeal.fat,
+          },
+          isEstimate: false,
+        })
+      } else if (replyText && formulaResult) {
+        // AI replied but not in the expected JSON shape — keep formula macros, tagged as estimate
         setResult({ ...formulaResult, description: replyText.slice(0, 350), isEstimate: true })
       }
     } catch {

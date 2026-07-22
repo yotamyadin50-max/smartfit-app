@@ -136,6 +136,8 @@ export default function WearablePage() {
 
   const platform = detectPlatform()
   const bleOk = isBLESupported()
+  const bleAvailable = bleOk
+  const showBleUnsupported = platform.isIOS || !bleAvailable
 
   function persist(next: WearableState) {
     setWState(next)
@@ -462,7 +464,7 @@ export default function WearablePage() {
                 {T('Disconnect', 'נתק')}
               </button>
             </div>
-          ) : showRememberedWatch && bleOk && !platform.isIOS ? (
+          ) : showRememberedWatch && !showBleUnsupported ? (
             <div className="wear-device-card">
               <div className="wear-device-info">
                 <span className="wear-device-icon">⌚</span>
@@ -494,11 +496,21 @@ export default function WearablePage() {
                 </button>
               </div>
             </div>
-          ) : !bleOk || platform.isIOS ? (
-            /* ── Not supported ── */
-            <div className="wear-device-card wear-device-unavailable">
-              <span className="wear-device-icon">🚫</span>
-              <p>{T('Not available on this device/browser', 'לא זמין במכשיר/דפדפן זה')}</p>
+          ) : showBleUnsupported ? (
+            /* ── BLE not supported — muted info, no connect button ── */
+            <div className="wear-info-box" style={{ marginTop: 8 }}>
+              <p>
+                {platform.isIOS
+                  ? T(
+                      'Bluetooth heart rate monitor is not supported on iOS. Use Apple Watch with the Health app instead.',
+                      'חיבור מוניטור דופק Bluetooth אינו נתמך ב-iOS. השתמש באפליקציית Health עם Apple Watch במקום.'
+                    )
+                  : T(
+                      'Bluetooth is not available in this browser. Try Chrome on Android.',
+                      'Bluetooth אינו זמין בדפדפן זה. נסה ב-Chrome על Android.'
+                    )
+                }
+              </p>
             </div>
           ) : (
             /* ── Connect options ── */

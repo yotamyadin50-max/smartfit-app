@@ -10,8 +10,10 @@ export const isSupabaseConfigured =
   typeof supabaseKey === 'string' && supabaseKey.length > 20 &&
   (supabaseKey.startsWith('sb_publishable_') || supabaseKey.startsWith('eyJ'))
 
-if (!isSupabaseConfigured && import.meta.env.DEV) {
-  console.error('[Supabase] credentials missing — check .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)')
+if (!isSupabaseConfigured) {
+  if (import.meta.env.DEV) {
+    console.error('[Supabase] ❌ credentials missing — cloud features disabled. Check .env')
+  }
 }
 
 /**
@@ -23,3 +25,15 @@ export const supabase = createClient(
   supabaseUrl  ?? 'https://placeholder.supabase.co',
   supabaseKey  ?? 'placeholder-anon-key',
 )
+
+export const supabaseStatus: 'configured' | 'missing' = isSupabaseConfigured ? 'configured' : 'missing'
+
+if (import.meta.env.DEV && isSupabaseConfigured) {
+  supabase.auth.getSession().then(({ error }) => {
+    if (error) {
+      console.error('[Supabase] ❌ connection failed:', error.message)
+    } else {
+      console.log('[Supabase] ✅ connected OK — project:', supabaseUrl)
+    }
+  })
+}

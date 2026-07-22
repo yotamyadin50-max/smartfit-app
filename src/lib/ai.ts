@@ -45,7 +45,14 @@ export async function generateWorkoutPlan(userProfile: object): Promise<object> 
 }
 
 export async function generateMealFromIngredients(ingredients: string[]): Promise<object> {
-  const userMessage = `יש לי ${ingredients.join(', ')}. צור מתכון רק מהמצרכים האלה.`
+  const userMessage = [
+    `יש לי את המצרכים הבאים: ${ingredients.join(', ')}.`,
+    'צור מתכון פשוט ומהיר רק מהמצרכים האלה, עבור המצרכים האלה בלבד — לא דוגמה כללית.',
+    'התשובה שלך חייבת להיות אך ורק אובייקט JSON תקני אחד, בדיוק במבנה הבא:',
+    '{"description": "תיאור קצר של המתכון וההכנה", "calories": מספר, "protein": מספר בגרמים, "carbs": מספר בגרמים, "fat": מספר בגרמים}',
+    'אסור להוסיף שום טקסט, הסבר, markdown, גדרות קוד (code fences), או דוגמה נוספת — רק אובייקט ה-JSON הזה ותו לא.',
+    'הערכים התזונתיים חייבים להיות מחושבים לפי המצרכים שצוינו למעלה, לא ערכים גנריים.',
+  ].join('\n')
   const reply = await getHybridAiReply({ prompt: userMessage, userMessage })
   return { text: reply.text, mode: reply.mode }
 }

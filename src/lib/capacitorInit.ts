@@ -55,3 +55,18 @@ export async function initCapacitor() {
     // Running in browser without Capacitor — safe to ignore everything
   }
 }
+
+// Called once the app shell has mounted (see App.tsx), so the splash screen
+// stays up through a slow JS boot instead of a blind fixed timer. Note this
+// fires on the top-level Suspense commit, not necessarily after the first
+// lazy-loaded route chunk has finished rendering.
+export async function hideSplashScreen() {
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (!Capacitor.isNativePlatform()) return
+    const { SplashScreen } = await import('@capacitor/splash-screen')
+    await SplashScreen.hide()
+  } catch {
+    // SplashScreen plugin might not be available — ignore
+  }
+}

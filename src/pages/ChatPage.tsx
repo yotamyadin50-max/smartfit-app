@@ -33,6 +33,7 @@ import {
   getTimeoutLocalModeLabel,
   handleFallback,
   sanitizeUserMessage,
+  type AiChatMessage,
 } from '../lib/aiClient'
 import {
   getRecentChatMessages,
@@ -52,6 +53,12 @@ function makeId() {
 }
 
 const MAX_CHAT_HISTORY_PROMPT_CHARS = 1800
+// Server's sanitizeMessages() hard-rejects a combined messages payload over
+// 6000 chars (server/openRouterAi.js). Keep well under that so a long
+// conversation with verbose AI replies never trips the server-side reject —
+// which previously showed the user a raw "[Local mode] Messages were empty
+// or invalid." string instead of a real answer.
+const MAX_CHAT_MESSAGES_TOTAL_CHARS = 4000
 const CHAT_SEND_DEBOUNCE_MS = 300
 const SLOW_AI_LOADING_MS = 10000
 
@@ -65,6 +72,21 @@ function toUiMessage(message: StoredChatMessage): ChatUiMessage {
     ...message,
     timestamp: new Date(message.timestamp),
   }
+}
+
+// Keeps the system message plus as much of the most recent history as fits
+// in maxTotalChars, dropping the oldest turns first.
+function capMessagesLength(messages: AiChatMessage[], maxTotalChars: number): AiChatMessage[] {
+  const [system, ...history] = messages
+  let total = system.content.length
+  const kept: AiChatMessage[] = []
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const next = history[i]
+    if (total + next.content.length > maxTotalChars && kept.length > 0) break
+    total += next.content.length
+    kept.unshift(next)
+  }
+  return [system, ...kept]
 }
 
 function toStoredMessage(message: ChatUiMessage): StoredChatMessage {
@@ -144,7 +166,7 @@ export default function ChatPage() {
     }
   }
 
-  const buildPrompt = (text: string, nextMessages: ChatMessage[]) => {
+  const buildPrompt = (text: string, nextMessages: ChatUiMessage[]): { prompt: string; messages: AiChatMessage[] } => {
     const answerLanguage = language === 'he' ? 'Hebrew' : 'English'
     const health = profile.health
     const nutrition = profile.nutrition
@@ -191,7 +213,7 @@ export default function ChatPage() {
       .slice(-MAX_CHAT_HISTORY_PROMPT_CHARS)
 
     const userName = profile.name?.trim()
-    return [
+    const systemContent = [
       `Answer in ${answerLanguage}.`,
       'You are Ascend AI, a fitness and nutrition coach for general guidance only.',
       userName ? `The user's name is ${userName}. Address them by name naturally.` : '',
@@ -203,10 +225,24 @@ export default function ChatPage() {
       'When you create a workout or list exercises, keep each exercise explanation short: maximum 1-2 lines.',
       'Do not provide medical advice, extreme diets, unsafe exercises, or weight-loss promises.',
       'If the user asks for something risky, give a safer general alternative.',
+    ].join('\n')
+
+    const prompt = [
+      systemContent,
       'Recent conversation:',
       recentMessages,
       `Current question: ${text}`,
     ].join('\n')
+
+    // Real messages array (system + turn-by-turn history) so the model gets
+    // proper multi-turn context instead of one flattened string. Capped so a
+    // long conversation never trips the server's combined-length limit.
+    const messages = capMessagesLength([
+      { role: 'system', content: systemContent },
+      ...nextMessages.slice(-6).map(message => ({ role: message.role, content: message.text })),
+    ], MAX_CHAT_MESSAGES_TOTAL_CHARS)
+
+    return { prompt, messages }
   }
 
   const executeSendMessage = async (cleanMessage: string) => {
@@ -253,8 +289,10 @@ export default function ChatPage() {
     }, SLOW_AI_LOADING_MS)
 
     try {
+      const { prompt, messages } = buildPrompt(userMsg.text, nextMessages)
       const replyResult = await getHybridAiReply({
-        prompt: buildPrompt(userMsg.text, nextMessages),
+        prompt,
+        messages,
         language,
         profile,
         signal: controller.signal,

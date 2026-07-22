@@ -23,7 +23,7 @@ import {
   type WorkoutCategory,
 } from '../data/mockWorkouts'
 import { getHeartRateSummary } from '../deviceConnections'
-import { sendNotification } from '../lib/notifications'
+import { sendInstantNotification } from '../lib/remindersService'
 import { estimateCardioCalories, formatPace, getCardioActivityType } from '../fitnessTracking'
 import { startLocationTracker, type LocationTrackerStatus } from '../locationTracker'
 import { getLastWorkoutWeights, getWorkoutProgress, saveCardioSession, saveCompletedWorkout, type WorkoutProgressEntry } from '../progressStorage'
@@ -1676,7 +1676,7 @@ function RestTimer({ seconds, onDone, onSkip, nextExerciseName }: { seconds: num
       if (document.visibilityState === 'hidden') {
         const title = language === 'he' ? '💪 זמן לחזור לאימון!' : '💪 Rest is over!'
         const body  = language === 'he' ? 'זמן המנוחה נגמר — חזור לאימון 💪' : 'Rest time is up — back to your workout!'
-        sendNotification(title, body)
+        sendInstantNotification(title, body)
       }
       onDone()
       return

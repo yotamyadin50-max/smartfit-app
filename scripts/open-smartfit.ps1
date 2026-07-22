@@ -36,7 +36,7 @@ if (Test-Path (Join-Path $portableNode 'npm.cmd')) {
 }
 
 if (-not $npm) {
-  Write-Host 'SmartFit needs Node.js/npm to run locally.'
+  Write-Host 'Ascend AI needs Node.js/npm to run locally.'
   Write-Host 'Install Node.js, or ask Codex to set up the local runtime again.'
   Read-Host 'Press Enter to close'
   exit 1

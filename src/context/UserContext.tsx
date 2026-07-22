@@ -529,11 +529,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_IN' && session?.user) {
         setCloudSynced(false)   // loading started — pause routing decisions
         const uid = session.user.id
-        const cloudData = await loadUserDataFromSupabase(uid)
-        if (cloudData?.profile) setProfile(cloudData.profile)
-        if (cloudData?.stats) setStats(cloudData.stats)
-        syncProgressFromSupabase(uid)
-        setCloudSynced(true)    // done
+
+        // Same safety net as the mount-time sync above: if Supabase is slow
+        // or unreachable on a mid-session re-login, don't leave the user
+        // stuck on the loading screen forever.
+        let signInSettled = false
+        const signInSafetyTimer = setTimeout(() => {
+          if (!signInSettled) { signInSettled = true; setCloudSynced(true) }
+        }, 4000)
+
+        try {
+          const cloudData = await loadUserDataFromSupabase(uid)
+          if (signInSettled) return   // safety timer already fired
+          signInSettled = true
+          clearTimeout(signInSafetyTimer)
+          if (cloudData?.profile) setProfile(cloudData.profile)
+          if (cloudData?.stats) setStats(cloudData.stats)
+          syncProgressFromSupabase(uid)
+          setCloudSynced(true)    // done
+        } catch (error) {
+          if (!signInSettled) { signInSettled = true; clearTimeout(signInSafetyTimer); setCloudSynced(true) }
+          if (import.meta.env.DEV) console.warn('[Supabase] sign-in data load failed', error)
+        }
       }
       if (event === 'SIGNED_OUT') {
         // Clear local state so the next user starts clean

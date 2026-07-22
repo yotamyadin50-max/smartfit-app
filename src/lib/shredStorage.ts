@@ -135,10 +135,15 @@ export function getSavedMeals(): SavedMeal[] {
   return readArr<SavedMeal>(MEALS_KEY).slice(0, 3)
 }
 
-export function saveMeal(meal: Omit<SavedMeal, 'id'>): void {
+export function saveMeal(meal: Omit<SavedMeal, 'id'>): { saved: boolean; replaced: string | null } {
   const all = readArr<SavedMeal>(MEALS_KEY)
-  if (all.length >= 3) all.shift()
+  let replaced: string | null = null
+  if (all.length >= 3) {
+    replaced = all[0].label
+    all.shift()
+  }
   writeArr(MEALS_KEY, [...all, { ...meal, id: uid() }])
+  return { saved: true, replaced }
 }
 
 export function deleteSavedMeal(id: string): void {
@@ -201,8 +206,21 @@ export function calculateDailyNeeds(profile: UserProfile): DailyNeeds {
   }
 
   const proteinMultiplier = hasCutGoal ? 2.2 : hasBulkGoal ? 2.0 : hasEnduranceGoal ? 1.5 : 1.7
-  const protein = Math.round(weightKg * proteinMultiplier)
-  const fat     = Math.round(Math.max(weightKg * 0.8, targetKcal * 0.25 / 9))
+  let protein = Math.round(weightKg * proteinMultiplier)
+  // Cap protein so at least a minimal fat allocation (15% of target kcal) still
+  // fits — a heavy user near the calorie floor could otherwise have protein
+  // alone exceed the whole budget, forcing fat to 0 and carbs to 0 below.
+  const minFatKcal = targetKcal * 0.15
+  const maxProteinKcal = Math.max(0, targetKcal - minFatKcal)
+  if (protein * 4 > maxProteinKcal) {
+    protein = Math.round(maxProteinKcal / 4)
+  }
+  let fat = Math.round(Math.max(weightKg * 0.8, targetKcal * 0.25 / 9))
+  // Overflow guard: protein + fat must not exceed the calorie budget
+  if (protein * 4 + fat * 9 > targetKcal) {
+    fat = Math.round((targetKcal - protein * 4) / 9 * 0.8)
+  }
+  fat = Math.max(0, fat)
   const carbsKcal = Math.max(0, targetKcal - protein * 4 - fat * 9)
   const carbs   = Math.round(carbsKcal / 4)
 

@@ -1045,7 +1045,7 @@ button { color: inherit; }
 .plan-day-name { display: block; color: var(--text-primary); font-size: 14px; font-weight: 800; }
 .plan-day-desc { display: block; color: var(--text-secondary); font-size: 11px; line-height: 1.4; margin-top: 2px; }
 .focus-pill { flex-shrink: 0; padding: 5px 10px; border-radius: 999px; background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.22); color: var(--neon-blue); font-size: 11px; font-weight: 800; }
-.plan-location-toggle { font-size: 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, background 0.15s; flex-shrink: 0; }
+.plan-location-toggle { font-size: 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, background 0.15s; flex-shrink: 0; }
 .plan-location-toggle.gym { border-color: var(--accent); background: var(--accent-dim); }
 .plan-location-toggle.home { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.07); }
 .plan-location-toggle:hover { transform: scale(1.1); }

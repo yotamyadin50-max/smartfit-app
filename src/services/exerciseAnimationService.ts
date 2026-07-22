@@ -92,7 +92,7 @@ function compactExercise(exercise: ExerciseDbAnimation): ExerciseDbAnimation | n
   }
 }
 
-function readCache(): ExerciseDbAnimation[] | null {
+function readCache(ignoreTtl = false): ExerciseDbAnimation[] | null {
   if (!canUseLocalStorage()) return null
 
   try {
@@ -101,7 +101,7 @@ function readCache(): ExerciseDbAnimation[] | null {
 
     const parsed = JSON.parse(raw) as ExerciseAnimationCache
     if (!Array.isArray(parsed.exercises)) return null
-    if (!parsed.savedAt || Date.now() - parsed.savedAt > CACHE_TTL_MS) return null
+    if (!ignoreTtl && (!parsed.savedAt || Date.now() - parsed.savedAt > CACHE_TTL_MS)) return null
 
     return parsed.exercises
   } catch (error) {
@@ -216,7 +216,9 @@ async function fetchExercisePage(after?: string): Promise<ExerciseDbResponse> {
   const params = new URLSearchParams({ limit: '1500' })
   if (after) params.set('after', after)
 
-  const response = await fetch(`${EXERCISE_DB_URL}?${params.toString()}`)
+  const response = await fetch(`${EXERCISE_DB_URL}?${params.toString()}`, {
+    signal: AbortSignal.timeout(8000),
+  })
   if (!response.ok) {
     throw new Error(`ExerciseDB request failed with status ${response.status}`)
   }
@@ -254,7 +256,17 @@ export async function fetchExerciseAnimations() {
     return exercises
   })().catch(error => {
     pendingFetch = null
-    throw error
+    // Fall back to a stale on-disk cache (even past its 14-day TTL) rather
+    // than an empty pool, so exercise GIFs keep working through a temporary
+    // outage — an empty array would previously "succeed" silently here.
+    const stale = readCache(true)
+    if (stale) {
+      console.warn('[ExerciseDB] failed to fetch animations — using stale cached pool', error)
+      memoryCache = stale
+      return stale
+    }
+    console.warn('[ExerciseDB] failed to fetch animations and no cache available', error)
+    return [] as ExerciseDbAnimation[]
   })
 
   return pendingFetch

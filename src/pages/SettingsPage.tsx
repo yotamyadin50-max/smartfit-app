@@ -1,5 +1,7 @@
 import PageHeader from '../components/layout/PageHeader'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { installLatestUpdate, CURRENT_VERSION } from '../lib/updater'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useI18n, type Language } from '../context/I18nContext'
@@ -391,6 +393,11 @@ export default function SettingsPage() {
           </button>
         </Section>
 
+        {/* ── עדכון אפליקציה (Android בלבד) ── */}
+        {Capacitor.getPlatform() === 'android' && (
+          <UpdateSection language={language} />
+        )}
+
         <button className="btn-primary" style={{ marginTop: 8 }} onClick={handleSave}>
           {saved ? `${t('saved')}!` : t('saveChanges')}
         </button>
@@ -400,6 +407,49 @@ export default function SettingsPage() {
           <button className="btn-signout" onClick={handleSignOut}>{t('signOut')}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function UpdateSection({ language }: { language: string }) {
+  const isHe = language === 'he'
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+
+  const handleUpdate = async () => {
+    setStatus('loading')
+    try {
+      await installLatestUpdate()
+      setStatus('done')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  return (
+    <div className="settings-section" style={{ border: '1px solid rgba(99,102,241,0.3)', borderRadius: 12, padding: 16, marginTop: 8 }}>
+      <h3 className="settings-section-title">🔄 {isHe ? 'עדכון אפליקציה' : 'App Update'}</h3>
+      <p className="settings-helper" style={{ marginBottom: 12 }}>
+        {isHe ? `גרסה נוכחית: ${CURRENT_VERSION}` : `Current version: ${CURRENT_VERSION}`}
+      </p>
+      {status === 'idle' && (
+        <button className="btn-primary" style={{ background: '#6366f1', borderColor: '#6366f1' }} onClick={handleUpdate}>
+          ⬇️ {isHe ? 'התקן עדכון' : 'Install Update'}
+        </button>
+      )}
+      {status === 'loading' && (
+        <p style={{ color: '#a5b4fc', fontSize: 14 }}>⏳ {isHe ? 'פותח דף הורדה...' : 'Opening download page...'}</p>
+      )}
+      {status === 'done' && (
+        <p style={{ color: '#22c55e', fontSize: 14 }}>✅ {isHe ? 'הורדה החלה — אנא התקן את הקובץ שהורד' : 'Download started — please install the downloaded file'}</p>
+      )}
+      {status === 'error' && (
+        <div>
+          <p style={{ color: '#ef4444', fontSize: 14 }}>❌ {isHe ? 'לא ניתן לפתוח את דף ההורדה' : 'Could not open the download page'}</p>
+          <button className="btn-secondary" style={{ marginTop: 8 }} onClick={() => setStatus('idle')}>
+            {isHe ? 'נסה שוב' : 'Retry'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

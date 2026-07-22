@@ -6,6 +6,7 @@ import { useI18n } from './context/I18nContext'
 import { savePendingInvite, acceptInvite, getPendingInvite, clearPendingInvite } from './lib/friendsService'
 import { syncKnownAppAccess } from './lib/appAccess'
 import { checkInactivityReminder, syncScheduledReminders } from './lib/remindersService'
+import { hideSplashScreen } from './lib/capacitorInit'
 
 import AnimatedWaveBackground from './components/AnimatedWaveBackground'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -178,6 +179,10 @@ function AppAccessSync() {
 
 export default function App() {
   const { t } = useI18n()
+
+  useEffect(() => {
+    hideSplashScreen()
+  }, [])
 
   return (
     <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>

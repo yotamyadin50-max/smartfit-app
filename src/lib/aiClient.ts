@@ -18,9 +18,15 @@ export type SmartFitAiReply = {
   text: string
 }
 
+export type AiChatMessage = {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
 export type HybridAiRequest = {
   prompt: string
   language?: Language
+  messages?: AiChatMessage[]
   profile?: Partial<UserProfile>
   signal?: AbortSignal
   stats?: UserStats
@@ -32,6 +38,12 @@ export type HybridAiRequest = {
 // In the native Capacitor build set VITE_API_BASE_URL=https://your-deploy.vercel.app
 // so the APK calls the real server instead of timing-out on a missing local endpoint.
 const AI_ENDPOINT = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '') + '/api/ai'
+
+if (import.meta.env.DEV) {
+  const base = import.meta.env.VITE_API_BASE_URL as string | undefined
+  if (!base) console.warn('[AI] VITE_API_BASE_URL is not set — AI will not work in native APK builds.')
+  else console.log('[AI] endpoint:', AI_ENDPOINT)
+}
 const AI_BASE_TIMEOUT_MS = 45000
 const AI_EXTENDED_TIMEOUT_MS = 60000
 const AI_SLOW_REQUEST_MS = 10000
@@ -346,9 +358,20 @@ function logAiRequestFailure({
   })
 }
 
-export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<SmartFitAiReply> {
+export async function fetchAI(prompt: string, signal?: AbortSignal, messages?: AiChatMessage[]): Promise<SmartFitAiReply> {
+  const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
+  if (isNative && AI_ENDPOINT.startsWith('/')) {
+    throw Object.assign(
+      new Error('AI server URL not configured for native build.'),
+      { skipRetry: true }
+    )
+  }
+
   const cleanPrompt = sanitizePrompt(prompt)
   if (!cleanPrompt) throw new Error('empty-prompt')
+  const cleanMessages = messages
+    ?.map(message => ({ role: message.role, content: sanitizePrompt(message.content) }))
+    .filter(message => message.content.length > 0)
 
   let lastError: unknown = null
 
@@ -360,7 +383,9 @@ export async function fetchAI(prompt: string, signal?: AbortSignal): Promise<Sma
       const response = await fetch(AI_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: cleanPrompt }),
+        body: JSON.stringify(
+          cleanMessages?.length ? { messages: cleanMessages, prompt: cleanPrompt } : { prompt: cleanPrompt }
+        ),
         signal: controller.signal,
       })
       const responseBody = await response.text()
@@ -475,12 +500,13 @@ export async function getHybridAiReply(request: HybridAiRequest): Promise<SmartF
     })
   }
 
-  const cacheKey = getCacheKey(prompt, userMessage, request.profile, request.stats, language)
+  const cacheableText = request.messages?.length ? JSON.stringify(request.messages).slice(-1200) : prompt
+  const cacheKey = getCacheKey(cacheableText, userMessage, request.profile, request.stats, language)
   const cached = getCachedAiReply(cacheKey)
   if (cached) return toCachedReply(cached)
 
   try {
-    const aiReply = await fetchAI(prompt, request.signal)
+    const aiReply = await fetchAI(prompt, request.signal, request.messages)
     setCachedAiReply({
       cacheKey,
       createdAt: new Date().toISOString(),

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lan-api": "node server/lanDevServer.js",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "build:android": "npm run build && npx cap sync android",
