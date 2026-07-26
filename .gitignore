@@ -141,3 +141,17 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Android (Capacitor native project) — generated/build/machine-specific only,
+# the native project itself (AndroidManifest.xml, build.gradle, etc.) is kept.
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/*/build/
+android/captures/
+android/.cxx/
+android/*.iml
+android/.idea/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
